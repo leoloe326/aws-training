@@ -2,3 +2,4 @@
 *.swp
 *.plist
 *.key
+.DS_Store
