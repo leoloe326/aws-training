@@ -26,6 +26,10 @@ prepare:
 configure:
 	@cd scripts/ && ./configure.sh
 
+.PHONY: bill
+bill:
+	@cd scripts/ && ./bill.py
+
 .PHONY: benchmark
 benchmark:
 	@echo "Bechmarking AWS resources..."
