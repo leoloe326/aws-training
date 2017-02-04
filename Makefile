@@ -33,6 +33,6 @@ benchmark:
 
 .PHONY: clean
 clean:
-	@cd scripts/ && ./benchmark.py --clean --verbose 2
+	@cd scripts/ && ./ec2_benchmark.py --clean --verbose 2
 	@echo "Clean the project..."
 	rm -rf *.pyc
