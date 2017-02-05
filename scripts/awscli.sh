@@ -4,7 +4,7 @@
 
 REGION_NAME=${REGION_NAME:-"us-west-2"}
 INSTANCE_TYPE=${INSTANCE_TYPE:-"t2.micro"}
-VPC_NAME=${VPC_NAME:="bittiger"}
+VPC_NAME=${VPC_NAME:="main"}
 
 # Don't modify unless you know what you are doing
 set -e
