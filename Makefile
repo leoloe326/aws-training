@@ -15,6 +15,7 @@ help:
 	@echo "Available actions are:"
 	@echo "  prepare      install prerequisite software packages"
 	@echo "  configure    configure AWS environment"
+	@echo "  bill         show AWS billing"
 	@echo "  benchmark    benchmark AWS resources"
 	@echo "  clean        clean project"
 

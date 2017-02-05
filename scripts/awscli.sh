@@ -4,11 +4,11 @@
 
 REGION_NAME=${REGION_NAME:-"us-west-2"}
 INSTANCE_TYPE=${INSTANCE_TYPE:-"t2.micro"}
-VPC_NAME=${VPC_NAME:="main"}
+VPC_NAME=${VPC_NAME:-"main"}
 
 # Don't modify unless you know what you are doing
 set -e
-set -x
+#set -x
 
 if [ $# != 1 ]; then
   printf "usage: $0 choice\n" 1>&2
@@ -41,7 +41,7 @@ function list_amis() {
   local region=$1
   local name=$2
   aws ec2 describe-images \
-    --region "$REGION_NAME" \
+    --region "${region}" \
     --filters \
       Name=owner-alias,Values=amazon \
       Name=name,Values="$name" \
@@ -125,7 +125,7 @@ function terminate_instances() {
 	--query "Reservations[].Instances[0].InstanceId" \
 	--output text)
 
-  aws ec2 terminate-instances --instance-ids $instance_ids
+  aws ec2 terminate-instances --instance-ids ${instance_ids}
 }
 
 # Run selected example

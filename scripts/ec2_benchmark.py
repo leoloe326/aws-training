@@ -270,7 +270,7 @@ s3 =
                 self.verbose(stdout.read(), 2)
                 self.verbose(stderr.read(), 2)
 
-                # Homework: download
+                # Homework: iPerf
 
     def clean(self):
         for instance in self.get_instances():
