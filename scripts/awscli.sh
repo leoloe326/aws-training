@@ -8,7 +8,7 @@ VPC_NAME=${VPC_NAME:="main"}
 
 # Don't modify unless you know what you are doing
 set -e
-set -x
+#set -x
 
 if [ $# != 1 ]; then
   printf "usage: $0 choice\n" 1>&2
