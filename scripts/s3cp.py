@@ -135,13 +135,14 @@ dst_bucket = s3.Bucket(bucket_name_prefix + '-to')
 debug('source bucket: %s' % src_bucket.name)
 debug('destination bucket: %s' % dst_bucket.name)
 
+# Empty and delete buckets
 if args.clean:
     timing_start()
     deleted_objects = 0
 
     for bucket in [src_bucket, dst_bucket]:
         try:
-            for key in bucket.objects.all():
+            for key in bucket.objects.all(): # HOWTO: get all objects 
                 trace('delete object: %s/%s' % (key.bucket_name, key.key))
                 if not args.dryrun:
                     key.delete()
@@ -158,11 +159,12 @@ if args.clean:
     timing_stop('deleted %d objects' % deleted_objects)
     sys.exit(0)
 
+# Create buckets
 if not args.dryrun:
     timing_start()
     for bucket in [src_bucket, dst_bucket]:
         try:
-            bucket.create(
+            bucket.create( # HOWTO: create bucket
                 CreateBucketConfiguration = {'LocationConstraint': 'us-west-2'},
             )
         except botocore.exceptions.ClientError as e:
@@ -261,9 +263,10 @@ def copy_objects_by_thread(thread_id, copied_objects):
     count = 0
     while True:
         prefix = tasks.get()
+        # HOWTO: list objects
         response = s3_client.list_objects_v2(
             Bucket=src_bucket.name,
-            Prefix=prefix)
+            Prefix=prefix) # Important: using prefix to limit listing
         for content in response['Contents']:
             key = content['Key']
             trace('thread %d copy object: s3://%s/%s' % \
