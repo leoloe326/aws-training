@@ -3,3 +3,5 @@
 *.plist
 *.key
 .DS_Store
+ansible.cfg
+*.retry
