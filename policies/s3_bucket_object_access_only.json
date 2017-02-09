@@ -1,0 +1,42 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": [
+          "arn:aws:iam::191250008715:root",
+          "arn:aws:iam::297066201120:root",
+          "arn:aws:iam::307921878590:root",
+          "arn:aws:iam::726376226564:root",
+          "arn:aws:iam::291073855236:root",
+          "arn:aws:iam::357499286946:root",
+          "arn:aws:iam::880250381774:root",
+          "arn:aws:iam::521390217438:root",
+          "arn:aws:iam::997918990405:root"
+        ]
+      },
+      "Action": [
+        "s3:ListBucket",
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::aws-nyc-taxi-data",
+        "arn:aws:s3:::aws-nyc-taxi-data/*"
+      ]
+    },
+    {
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": [
+        "s3:DeleteBucket",
+        "s3:GetBucketPolicy",
+        "s3:PutBucketPolicy",
+        "s3:DeleteBucketPolicy"
+      ],
+      "Resource": "arn:aws:s3:::aws-nyc-taxi-data"
+    }
+  ]
+}
