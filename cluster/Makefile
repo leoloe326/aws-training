@@ -11,7 +11,8 @@ TF_CONFIG_VARS := config.tfvars
 TF := terraform
 TF_FLAGS := -var-file=$(TF_CONFIG_VARS)
 USER ?= `whoami`
-
+AS  := ansible
+ASP := ansible-playbook
 
 all: help
 help:
@@ -22,6 +23,7 @@ help:
 	@echo "  show        show infrasctructure plan"
 	@echo "  apply       apply infrastructure plan"
 	@echo "  inventory   create Ansible inventory file"
+	@echo "  deploy      deploy ansible playbook"
 	@echo "  destroy     destroy infrastructure"
 
 .PHONY: ami
@@ -48,6 +50,11 @@ apply:
 inventory:
 	@echo "Creating Ansible inventory..."
 	$(TF) output -json | ./json2ini.py --keywords webserver,mapper,reducer -o hosts
+
+.PHONY: deploy
+deploy:
+	@echo "Deploying Ansible playbook..."
+	$(ASP) cluster.yaml
 
 .PHONY: destroy
 destroy:
