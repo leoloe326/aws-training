@@ -29,7 +29,7 @@
       "inline": [
       "sudo yum-config-manager --enable epel",
       "sudo yum -y update",
-      "sudo yum -y install yum-utils emacs screen tmux iftop htop tcpdump wget strace lsof",
+      "sudo yum -y install yum-utils emacs screen tmux iftop htop tcpdump wget strace lsof git",
       "sudo yum -y install gcc gdb valgrind glibc.i686 glibc.x86_64",
       "sudo yum -y install python27 python27-test",
       "sudo yum -y install openssl-devel",
