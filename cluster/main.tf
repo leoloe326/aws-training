@@ -175,6 +175,14 @@ resource "aws_security_group" "default" {
         cidr_blocks = ["${var.aws["in_ssh_cidr_block"]}"]
     }
 
+    # Allow all outbound
+    egress {
+        from_port = 0
+        to_port = 0
+        protocol = "-1"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+
     tags {
         Environment = "${var.tags["environment"]}"
         Name        = "default-security-group-${var.tags["environment"]}"

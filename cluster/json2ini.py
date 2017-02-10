@@ -14,7 +14,7 @@ def find_key(data, keywords):
             if key in keywords: addrs[key] = value
             if isinstance(value, dict):
                 find_key(value, keywords)
-            elif isinstance(value, list):
+            elif isinstance(value, list) and value:
                 find_key(value[0], keywords)
 
 parser = argparse.ArgumentParser(
