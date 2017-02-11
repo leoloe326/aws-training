@@ -12,55 +12,11 @@ import argparse
 import sys
 import os.path
 import fileinput
-import json
-import shapely.geometry
 
 from collections import defaultdict
 from collections import Counter
 
-class GeoPolygon:
-    def __init__(self, index, name, polygon):
-        self.index = index
-        self.name = name
-        self.polygon = shapely.geometry.shape(polygon)
-
-    def __contains__(self, point):
-        return self.polygon.contains(shapely.geometry.Point(point))
-
-    def __str__(self):
-        return '{index}: {name}'.format(**self.__dict__)
-
-    def xy(self):
-        x, y = self.polygon.exterior.coords.xy
-        return list(x), list(y)
-
-    @classmethod
-    def load(cls, filename):
-        polygons = []
-        with open(filename, 'r') as f:
-            for feature in json.load(f)['features']:
-                properties = feature['properties']
-                if 'boro_name' in properties:
-                    # Boroughs
-                    name = properties['boro_name']
-                    index = int(properties['boro_code']) * 10000
-                else:
-                    # Community districts
-                    name = 'Community District %s' % properties['boro_cd']
-                    index = int(properties['boro_cd']) * 100
-
-                # Flatten multipolygon
-                # see structure at http://terraformer.io/glossary/
-                geometry = feature['geometry']
-                if geometry['type'].lower() == 'polygon':
-                    raise NotImplementedError
-                # print '%s has %d patches' % (name, len(geometry['coordinates']))
-                for i, coords in enumerate(geometry['coordinates']):
-                    polygon = {'type': 'Polygon', 'coordinates': coords}
-                    polygons.append(GeoPolygon(index + i + 1, name, polygon))
-
-        polygons.sort(key=lambda x: x.index)
-        return polygons
+from geo import NYCGeoPolygon
 
 def parse_argv():
     parser = argparse.ArgumentParser(
@@ -81,8 +37,8 @@ class Pipeline:
         self.cwd = os.path.dirname(__file__)
 
         # Load Boroughs and Community Districts information
-        self.boroughs = GeoPolygon.load(self.get_fullpath('nyc_boroughs.geojson'))
-        self.districts = GeoPolygon.load(self.get_fullpath('nyc_community_districts.geojson'))
+        self.boroughs = NYCGeoPolygon.load(self.get_fullpath('nyc_boroughs.geojson'))
+        self.districts = NYCGeoPolygon.load(self.get_fullpath('nyc_community_districts.geojson'))
         self.district_counter = defaultdict(Counter)
 
     def get_fullpath(self, filename):
