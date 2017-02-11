@@ -3,3 +3,6 @@
 *.plist
 *.key
 .DS_Store
+*.retry
+*.tfstate
+*.tfstate.backup

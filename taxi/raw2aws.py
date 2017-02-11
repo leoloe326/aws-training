@@ -36,7 +36,8 @@ def info(msg):
 
 def parse_argv():
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="Convert raw NYC taxi trip data and transfer it to AWS")
 
     parser.add_argument("--start", metavar='YYYY-MM',
         type=str, default='2016-01', help="start date")
@@ -93,6 +94,8 @@ class RawReader(io.IOBase):
         self.year = 2016
         self.month = 1
         self.buf = None
+        self.read_lines = 0
+        self.max_lines = sys.maxint
 
     def alloc_buf(self, size=None):
         if size is None: size = self.DEFAULT_BUFFER_SIZE
@@ -182,6 +185,7 @@ class RawReader(io.IOBase):
         self.color = color
         self.year = year
         self.month = month
+        self.max_lines = max_lines
         self.alloc_buf(min(buf_size, self.MAX_RECORD_LENGTH * max_lines))
 
         if source.startswith('http://') or source.startswith('https://'):
@@ -233,6 +237,8 @@ class RawReader(io.IOBase):
             self.buf.compact()
             while self.buf.get_remaining() >= self.MAX_RECORD_LENGTH:
                 line = self.data.readline()
+                self.read_lines += 1
+                if self.read_lines > self.max_lines: line = None
                 if not line: break # EOF
                 line = self.reformat(line)
                 if line: self.buf.put(bytearray(line))
