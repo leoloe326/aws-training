@@ -45,4 +45,4 @@ debug:
 clean:
 	@cd scripts/ && ./ec2_benchmark.py --clean --verbose 2
 	@echo "Clean the project..."
-	rm -rf *.pyc
+	rm -rf *.pyc */*.pyc
