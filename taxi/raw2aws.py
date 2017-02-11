@@ -7,6 +7,7 @@
 
 import argparse
 import calendar
+import copy
 import datetime
 import dateutil
 import fileinput
@@ -15,10 +16,21 @@ import re
 import sys
 import io
 import urllib2
+import multiprocessing
 
 import bytebuffer
 import botocore
 import boto3
+
+
+MIN_DATE = {
+    'yellow': datetime.datetime(2009, 1, 1),
+    'green' : datetime.datetime(2013, 8, 1)
+}
+MAX_DATE = {
+    'yellow': datetime.datetime(2016, 6, 30),
+    'green' : datetime.datetime(2016, 6, 30)
+}
 
 def fatal(msg=''):
     if msg:
@@ -67,6 +79,10 @@ def parse_argv():
         dest='tagging', default='true',
         help="enable or disable objects tagging")
 
+    parser.add_argument("--procs", metavar='NUM', type=int,
+        dest='procs', default=1,
+        help="number of parallel process")
+
     args = parser.parse_args()
 
     # check arguments
@@ -76,9 +92,29 @@ def parse_argv():
         fatal('start date %s is after end date %s' % \
             (args.start.strftime('%Y-%m'), args.end.strftime('%Y-%m')))
 
+    if not (args.start >= MIN_DATE[args.color] and \
+            args.end <= MAX_DATE[args.color]):
+        fatal('date range must be from %s to %s for %s data' % \
+            (MIN_DATE[args.color].strftime('%Y-%m'),
+             MAX_DATE[args.color].strftime('%Y-%m'),
+             args.color))
+
     args.tagging = eval(args.tagging.capitalize())
 
     return args
+
+def get_date_range(start, end):
+    def add_months(date, months):
+        month = date.month - 1 + months
+        year = int(date.year + month / 12)
+        month = month % 12 + 1
+        day = min(date.day, calendar.monthrange(year, month)[1])
+        return datetime.datetime(year, month, day)
+
+    current = start
+    while current <= end:
+        yield current
+        current = add_months(current, 1)
 
 class RawReader(io.IOBase):
     """A file-like raw HTTP data reader and pre-processor
@@ -286,19 +322,6 @@ class Raw2AWS:
         self.client = boto3.client('s3')
         self.reader = RawReader()
 
-    def get_date_range(self):
-        def add_months(date, months):
-            month = date.month - 1 + months
-            year = int(date.year + month / 12)
-            month = month % 12 + 1
-            day = min(date.day, calendar.monthrange(year, month)[1])
-            return datetime.datetime(year, month, day)
-
-        current = self.opts.start
-        while current <= self.opts.end:
-            yield current
-            current = add_months(current, 1)
-
     def output(self, fin, date):
         if self.opts.dst.startswith('file://'):
             path = os.path.realpath(self.opts.dst[7:])
@@ -350,15 +373,33 @@ class Raw2AWS:
             sys.stdout.flush()
 
     def run(self):
-        for date in self.get_date_range():
-            with self.reader.open(self.opts.color, date.year, date.month,
-                                  self.opts.src, self.opts.max_lines,
-                                  self.opts.read_buf_size) as fin:
-                self.output(fin, date)
+        try:
+            for date in get_date_range(self.opts.start, self.opts.end):
+                self.run_date(date)
+        except KeyboardInterrupt as e:
+            return
+
+    def run_date(self, date):
+        with self.reader.open(self.opts.color, date.year, date.month,
+                              self.opts.src, self.opts.max_lines,
+                              self.opts.read_buf_size) as fin:
+            self.output(fin, date)
+
+def start_process(args):
+    r = Raw2AWS(args)
+    r.run()
 
 def main():
-    r = Raw2AWS(parse_argv())
-    r.run()
+    args = parse_argv()
+    tasks = []
+
+    for date in get_date_range(args.start, args.end):
+        args_copy = copy.deepcopy(args)
+        args_copy.start, args_copy.end = date, date
+        tasks.append(args_copy)
+
+    procs = multiprocessing.Pool(processes=args.procs)
+    procs.map(start_process, tasks)
 
 if __name__ == '__main__':
     main()
