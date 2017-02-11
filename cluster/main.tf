@@ -1,3 +1,8 @@
+# Copyright 2017, Nan Dun <nan.dun@acm.org>
+# All rights reserved.
+
+# Terraform Configurations
+
 variable "aws" {
     type = "map"
     default = {
@@ -94,7 +99,7 @@ resource "aws_instance" "webserver" {
         Environment = "${var.tags["environment"]}"
         User        = "${var.tags["user"]}"
         Group       = "webserver"
-        Name        = "webserver-${var.tags["environment"]}"
+        Name        = "webserver"
     }
 }
 
@@ -242,7 +247,6 @@ resource "aws_security_group" "reducer" {
     description = "reducer security group in ${var.tags["environment"]}"
 
     // allow outbound to S3
-
     tags {
         Environment = "${var.tags["environment"]}"
         User        = "${var.tags["user"]}"
