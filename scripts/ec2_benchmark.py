@@ -114,7 +114,7 @@ class Benchmark:
                         {
                             'DeviceName': '/dev/xvda',
                             'Ebs': {
-                                'VolumeSize': 16,
+                                'VolumeSize': 8,
                                 'DeleteOnTermination': True,
                                 'VolumeType': 'gp2',
                             },
@@ -187,7 +187,7 @@ class Benchmark:
             while retry < self.opts.retry:
                 try:
                     client.connect(instance.public_ip_address, port=22, username='ec2-user',
-                        key_filename='/Users/dun/.ssh/id_aws.pem')
+                        key_filename='/home/leo_zou/.ssh/aws_211.pem')
                     break
                 except (BadHostKeyException, AuthenticationException,
                         NoValidConnectionsError, SSHException, socket.error) as e:
@@ -209,7 +209,7 @@ sudo `which pip` install -U boto boto3 awscli
 mkdir -p ~/.aws
 exit
 ''')
-            self.verbose(stdout.read(), 2)
+	    self.verbose(stdout.read(), 2)
 
             sftp = client.open_sftp()
             aws_config = sftp.file("/home/ec2-user/.aws/config", "w+", -1)
@@ -275,7 +275,6 @@ s3 =
     def clean(self):
         for instance in self.get_instances():
             self.terminate_instance(instance)
-
             bucket = self.s3.Bucket("benchmark-%s" % instance.instance_id)
             self.verbose("  delete bucket %s...\n" % bucket.name)
             for key in bucket.objects.all(): key.delete()
