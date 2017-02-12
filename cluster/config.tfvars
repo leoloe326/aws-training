@@ -36,9 +36,9 @@ webserver = {
 # Mapper Settings
 mapper = {
   instance_type        = "t2.micro"
-  count                = "0"
+  count                = "1"
   ebs_device_name      = "/dev/sdb"
-  ebs_volume_size      = 16
+  ebs_volume_size      = 8
   ebs_volume_type      = "gp2"
   out_sqs_cidr_block   = "0.0.0.0/0"
 }
@@ -46,5 +46,5 @@ mapper = {
 # Reducer Settings
 reducer = {
   instance_type        = "t2.micro"
-  count                = "0"
+  count                = "1"
 }

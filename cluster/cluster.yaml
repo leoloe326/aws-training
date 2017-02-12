@@ -15,7 +15,7 @@
       - geos-devel
     become: yes
 
-  - name: intall python packages
+  - name: install python packages
     environment:
       PATH: /usr/local/bin/:$PATH
     pip: name={{ item }} state=latest
