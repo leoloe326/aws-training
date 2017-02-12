@@ -200,8 +200,12 @@ class RawReader(io.IOBase):
             fare_amount = "%.2f" % float(fare_amount)
 
         except ValueError, e:
-            warning("%s-%s-%02d: %s: %s\n" % \
-                (self.color, self.year, self.month, e, line))
+            warning("%s-%s-%02d: %s: d%s d%s f%s f%s f%s f%s f%s f%s" % \
+                (self.color, self.year, self.month, e,
+                 pickup_datetime, dropoff_datetime,
+                 pickup_longitude, pickup_latitude,
+                 dropoff_longitude, dropoff_latitude,
+                 trip_distance, fare_amount))
             return None
 
         line = ','.join([pickup_datetime, dropoff_datetime, \
