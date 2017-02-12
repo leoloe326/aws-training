@@ -45,6 +45,7 @@
     git:
       repo: git@bitbucket.org:bittiger-aws/aws.git
       dest: /home/{{ deploy_user }}/aws
+      version: master # TODO: change to your branch
       key_file: /home/{{ deploy_user }}/.ssh/{{ deploy_key }}
       accept_hostkey: yes
       update: yes
