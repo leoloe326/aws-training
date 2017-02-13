@@ -83,6 +83,10 @@ def parse_argv():
         dest='procs', default=1,
         help="number of parallel process")
 
+    parser.add_argument("--grant-full-control", action='store_true',
+        dest='grant_full_control', default=False,
+        help="grant bucket-owner-full-control access for cross-account copy")
+
     args = parser.parse_args()
 
     # check arguments
@@ -357,7 +361,10 @@ class Raw2AWS:
                     fatal("%s does not exists" % self.opts.dst)
 
             key = '%s-%s-%02d.csv' % (self.opts.color, date.year, date.month)
-            bucket.Object(key).upload_fileobj(fin)
+            obj = bucket.Object(key)
+            obj.upload_fileobj(fin)
+            if self.opts.grant_full_control:
+                obj.Acl().put(ACL='bucket-owner-full-control')
 
             if self.opts.tagging:
                 # HOWTO: tagging object
