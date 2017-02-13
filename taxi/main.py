@@ -19,7 +19,7 @@ from bokeh.models.widgets import Dropdown, RangeSlider, RadioButtonGroup, Slider
 from bokeh.io import curdoc
 from bokeh.sampledata.autompg import autompg as df
 
-from pipeline import GeoPolygon
+from geo import NYCGeoPolygon
 
 class InteractivePlot:
     def __init__(self):
@@ -106,7 +106,7 @@ class InteractivePlot:
         color_mapper = LogColorMapper(palette=palette)
 
         # Pickup/Dropoff Map
-        districts = GeoPolygon.load(self.get_fullpath('nyc_community_districts.geojson'))
+        districts = NYCGeoPolygon.load(self.get_fullpath('nyc_community_districts.geojson'))
         xs = []
         ys = []
         names = []

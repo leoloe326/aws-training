@@ -12,9 +12,9 @@
     "source_ami": "ami-f173cc91",
     "instance_type": "t2.micro",
     "ssh_username": "ec2-user",
-    "ami_name": "Demo Amazon Linux AMI 2017.01.1 x86_64 HVM SSD {{timestamp}}",
-	"vpc_id": "vpc-51a73336",
-	"subnet_id": "subnet-dd26e594"
+    "ami_name": "BitTiger Amazon Linux AMI 2017.01.1 x86_64 HVM SSD {{timestamp}}",
+    "vpc_id": "vpc-51a73336",
+    "subnet_id": "subnet-dd26e594"
   }],
 
   "provisioners": [
@@ -27,19 +27,19 @@
     {
       "type": "shell",
       "inline": [
-      "sudo yum-config-manager --enable epel",
-      "sudo yum -y update",
-      "sudo yum -y install yum-utils emacs screen tmux iftop htop tcpdump wget strace lsof git",
-      "sudo yum -y install gcc gdb valgrind glibc.i686 glibc.x86_64 geos-devel",
-      "sudo yum -y install python27 python27-test",
-      "sudo yum -y install openssl-devel",
+        "sudo yum-config-manager --enable epel",
+        "sudo yum -y update",
+        "sudo yum -y install yum-utils emacs screen tmux iftop htop tcpdump wget strace lsof git",
+        "sudo yum -y install gcc gdb valgrind glibc.i686 glibc.x86_64 geos-devel",
+        "sudo yum -y install python27 python27-test",
+        "sudo yum -y install openssl-devel",
 
-      "sudo yum -y remove java-1.7.0-openjdk",
-      "sudo sh /tmp/install_java.sh",
-      "sudo rm -rf /tmp/install_java.sh",
+        "sudo yum -y remove java-1.7.0-openjdk",
+        "sudo sh /tmp/install_java.sh",
+        "sudo rm -rf /tmp/install_java.sh",
 
-      "sudo `which pip` install -U pip",
-      "sudo `which pip` install -U boto boto3 awscli bokeh paramiko bytebuffer jmespath-terminal pandas shapely"
+        "sudo `which pip` install -U pip",
+        "sudo `which pip` install -U boto boto3 awscli bokeh paramiko bytebuffer jmespath-terminal pandas shapely"
       ]
     }
   ]

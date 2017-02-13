@@ -15,7 +15,7 @@
       - geos-devel
     become: yes
 
-  - name: intall python packages
+  - name: install python packages
     environment:
       PATH: /usr/local/bin/:$PATH
     pip: name={{ item }} state=latest
@@ -45,6 +45,7 @@
     git:
       repo: git@bitbucket.org:bittiger-aws/aws.git
       dest: /home/{{ deploy_user }}/aws
+      version: master # TODO: change to your branch
       key_file: /home/{{ deploy_user }}/.ssh/{{ deploy_key }}
       accept_hostkey: yes
       update: yes

@@ -1,3 +1,8 @@
+# Copyright 2017, Nan Dun <nan.dun@acm.org>
+# All rights reserved.
+
+# Terraform Configurations
+
 variable "aws" {
     type = "map"
     default = {
@@ -36,7 +41,6 @@ variable "webserver" {
     type = "map"
     default = {
         instance_type        = ""
-        iam_instance_profile = ""
         root_volume_type     = ""
         root_volume_size     = ""
         root_volume_delete   = ""
@@ -47,9 +51,8 @@ variable "webserver" {
 variable "mapper" {
     type = "map"
     default = {
-        instance_type        = ""
-        count                = 1
-        iam_instance_profile = ""
+        instance_type   = ""
+        count           = 0
 
         ebs_device_name = ""
         ebs_volume_type = ""
@@ -61,9 +64,8 @@ variable "mapper" {
 variable "reducer" {
     type = "map"
     default = {
-        instance_type        = ""
-        count                = 1
-        iam_instance_profile = ""
+        instance_type = ""
+        count         = 0
     }
 }
 
@@ -94,7 +96,7 @@ resource "aws_instance" "webserver" {
         Environment = "${var.tags["environment"]}"
         User        = "${var.tags["user"]}"
         Group       = "webserver"
-        Name        = "webserver-${var.tags["environment"]}"
+        Name        = "webserver"
     }
 }
 
@@ -242,7 +244,6 @@ resource "aws_security_group" "reducer" {
     description = "reducer security group in ${var.tags["environment"]}"
 
     // allow outbound to S3
-
     tags {
         Environment = "${var.tags["environment"]}"
         User        = "${var.tags["user"]}"
