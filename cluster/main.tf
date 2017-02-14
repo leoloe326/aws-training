@@ -41,6 +41,7 @@ variable "webserver" {
     type = "map"
     default = {
         instance_type        = ""
+        count                = ""
         root_volume_type     = ""
         root_volume_size     = ""
         root_volume_delete   = ""
@@ -57,7 +58,7 @@ variable "mapper" {
         ebs_device_name = ""
         ebs_volume_type = ""
         ebs_volume_size = ""
-        ebs_deletion    = ""
+        ebs_volume_deletion = ""
     }
 }
 
@@ -86,6 +87,8 @@ resource "aws_instance" "webserver" {
     iam_instance_profile        = "${var.aws["iam_instance_profile"]}"
 
     instance_type               = "${var.webserver["instance_type"]}"
+    count                       = "${var.webserver["count"]}"
+
     root_block_device {
         volume_type = "${var.webserver["root_volume_type"]}"
         volume_size = "${var.webserver["root_volume_size"]}"
@@ -96,7 +99,7 @@ resource "aws_instance" "webserver" {
         Environment = "${var.tags["environment"]}"
         User        = "${var.tags["user"]}"
         Group       = "webserver"
-        Name        = "webserver"
+        Name        = "webserver${count.index}"
     }
 }
 
@@ -254,10 +257,19 @@ resource "aws_security_group" "reducer" {
 ### Route 53 Records ###
 resource "aws_route53_record" "webserver" {
     zone_id = "${var.aws["route53_zone"]}"
-    name    = "web"
+    count   = "${var.webserver["count"]}"
+    name    = "${element(aws_instance.webserver.*.tags.Name, count.index)}"
     type    = "A"
     ttl     = "300"
-    records = ["${aws_instance.webserver.public_ip}"]
+    records = ["${element(aws_instance.webserver.*.public_ip, count.index)}"]
+}
+
+resource "aws_route53_record" "web" {
+    zone_id = "${var.aws["route53_zone"]}"
+    name    = "web"
+    type    = "CNAME"
+    ttl     = "300"
+    records = ["${element(aws_route53_record.webserver.*.fqdn, 0)}"]
 }
 
 resource "aws_route53_record" "mapper" {
@@ -279,7 +291,7 @@ resource "aws_route53_record" "reducer" {
 }
 
 output "webserver"  {
-    value = ["${aws_route53_record.webserver.fqdn}"]
+    value = ["${aws_route53_record.webserver.*.fqdn}"]
 }
 
 output "mapper" {
