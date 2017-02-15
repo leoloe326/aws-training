@@ -317,7 +317,7 @@ resource "aws_alb" "web" {
   internal = false
   subnets = ["${split(",", var.aws["subnet_ids"])}"]
   security_groups = [ "${aws_security_group.default.id}", "${aws_security_group.webserver.id}" ]
-  enable_deletion_protection = true
+  enable_deletion_protection = false
   count = "${var.webserver["count"] ? 1 : 0}"
 
   tags {
