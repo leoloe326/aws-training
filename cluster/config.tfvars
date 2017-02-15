@@ -11,6 +11,7 @@ aws = {
   associate_public_ip_address = "true"
   in_ssh_cidr_block = "0.0.0.0/0"
   iam_instance_profile = "Taxi-EC2-Instance-Profile"
+  use_spot_instances   = true
 }
 
 # Terraform Settings
@@ -29,7 +30,7 @@ tags = {
 # Web Server Settings
 webserver = {
   instance_type        = "t2.micro"
-  count                = "2"
+  count                = "0"
   root_volume_type     = "gp2"
   root_volume_size     = "8"
   in_http_cidr_block   = "0.0.0.0/0"
@@ -37,8 +38,9 @@ webserver = {
 
 # Mapper Settings
 mapper = {
-  instance_type        = "t2.micro"
-  count                = "0"
+  instance_type        = "c4.8xlarge"
+  count                = "1"
+  spot_price           = "1.5"
   ebs_device_name      = "/dev/sdb"
   ebs_volume_size      = 8
   ebs_volume_type      = "gp2"
@@ -48,6 +50,7 @@ mapper = {
 
 # Reducer Settings
 reducer = {
-  instance_type        = "t2.micro"
+  instance_type        = "c4.8xlarge"
   count                = "0"
+  spot_price           = "1.5"
 }
