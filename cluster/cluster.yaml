@@ -1,6 +1,6 @@
 ---
 - name: site
-  hosts: webservers
+  hosts: webservers:mappers:reducers
   vars_files:
   - cluster_config.yaml
   remote_user: ec2-user
@@ -26,9 +26,14 @@
       bucket: "{{ deploy_bucket }}"
       object: "/aws/{{ deploy_key }}"
       dest: "{{ deploy_home }}/.ssh/{{ deploy_key }}"
-      overwrite: yes
+      overwrite: no
       mode: get
-    notify: set SSH key mode
+
+  - name: set SSH key mode
+    file:
+      path: "{{ deploy_home }}/.ssh/{{ deploy_key }}"
+      mode: 0600
+    become: yes
 
   - name: deploy project repository
     git:
@@ -38,13 +43,6 @@
       key_file: "{{ deploy_home }}/.ssh/{{ deploy_key }}"
       accept_hostkey: yes
       update: yes
-
-  handlers:
-  - name: set SSH key mode
-    file:
-      path: "{{ deploy_home }}/.ssh/{{ deploy_key }}"
-      mode: 0400
-    become: yes
 
 - name: webservers
   hosts: webservers
