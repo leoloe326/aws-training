@@ -290,14 +290,14 @@ resource "aws_route53_record" "reducer" {
     records = ["${element(aws_instance.reducer.*.public_ip, count.index)}"]
 }
 
-output "webserver"  {
+output "webservers"  {
     value = ["${aws_route53_record.webserver.*.fqdn}"]
 }
 
-output "mapper" {
+output "mappers" {
     value = ["${aws_route53_record.mapper.*.fqdn}"]
 }
 
-output "reducer" {
+output "reducers" {
     value = ["${aws_route53_record.reducer.*.fqdn}"]
 }

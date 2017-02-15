@@ -49,7 +49,7 @@ apply:
 .PHONY: inventory
 inventory:
 	@echo "Creating Ansible inventory..."
-	$(TF) output -json | ./json2ini.py --keywords webserver,mapper,reducer -o hosts
+	$(TF) output -json | ./json2ini.py --keywords webservers,mappers,reducers -o hosts
 
 .PHONY: deploy
 deploy:
