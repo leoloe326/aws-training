@@ -318,6 +318,7 @@ resource "aws_alb" "web" {
   subnets = ["${split(",", var.aws["subnet_ids"])}"]
   security_groups = [ "${aws_security_group.default.id}", "${aws_security_group.webserver.id}" ]
   enable_deletion_protection = true
+  count = "${var.webserver["count"] ? 1 : 0}"
 
   tags {
     Environment = "${var.tags["environment"]}"
@@ -345,6 +346,7 @@ resource "aws_alb_listener" "web" {
   load_balancer_arn = "${aws_alb.web.id}"
   port              = "80"
   protocol          = "HTTP"
+  count = "${var.webserver["count"] ? 1 : 0}"
 
   default_action {
     target_group_arn = "${element(aws_alb_target_group.web.*.arn, 0)}"
