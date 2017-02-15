@@ -12,6 +12,7 @@ variable "aws" {
         route53_zone    = ""
         security_group  = ""
         subnet_id       = ""
+        subnet_ids      = ""
         monitoring      = ""
         vpc_id          = ""
         associate_public_ip_address = ""
@@ -254,6 +255,63 @@ resource "aws_security_group" "reducer" {
     }
 }
 
+### ELB ###
+resource "aws_alb" "web" {
+  name = "webserver-alb-${var.tags["environment"]}"
+  internal = false
+  subnets = ["${split(",", var.aws["subnet_ids"])}"]
+  security_groups = [ "${aws_security_group.default.id}", "${aws_security_group.webserver.id}" ]
+  enable_deletion_protection = true
+
+  tags {
+    Environment = "${var.tags["environment"]}"
+    User        = "${var.tags["user"]}"
+    Name        = "webserver-alb-${var.tags["environment"]}"
+  }
+}
+
+resource "aws_alb_target_group" "web" {
+  name     = "web${count.index}-target-group"
+  port     = 80
+  protocol = "HTTP"
+  count    = "${var.webserver["count"]}"
+  vpc_id = "${var.aws["vpc_id"]}"
+}
+
+resource "aws_alb_target_group_attachment" "web" {
+  count            = "${var.webserver["count"]}"
+  target_group_arn = "${element(aws_alb_target_group.web.*.arn, count.index)}"
+  target_id        = "${element(aws_instance.webserver.*.id, count.index)}"
+  port = 80
+}
+
+resource "aws_alb_listener" "web" {
+  load_balancer_arn = "${aws_alb.web.id}"
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    target_group_arn = "${element(aws_alb_target_group.web.*.arn, 0)}"
+    type             = "forward"
+  }
+}
+
+resource "aws_alb_listener_rule" "web" {
+  listener_arn = "${aws_alb_listener.web.arn}"
+  count    = "${var.webserver["count"]}"
+  priority = "${count.index + 100}"
+
+  action {
+    type = "forward"
+    target_group_arn = "${element(aws_alb_target_group.web.*.arn, count.index)}"
+  }
+
+  condition {
+    field = "path-pattern"
+    values = ["/webserver${count.index}/*"]
+  }
+}
+
 ### Route 53 Records ###
 resource "aws_route53_record" "webserver" {
     zone_id = "${var.aws["route53_zone"]}"
@@ -269,7 +327,7 @@ resource "aws_route53_record" "web" {
     name    = "web"
     type    = "CNAME"
     ttl     = "300"
-    records = ["${element(aws_route53_record.webserver.*.fqdn, 0)}"]
+    records = ["${aws_alb.web.dns_name}"]
 }
 
 resource "aws_route53_record" "mapper" {
