@@ -1,0 +1,7 @@
+---
+deploy_user: ec2-user
+deploy_key: id_bitbucket_deploy
+deploy_home: "/home/{{ deploy_user }}"
+deploy_bucket: dun
+repo_url: git@bitbucket.org:bittiger-aws/aws.git
+repo_home: "{{ deploy_home }}/aws"
