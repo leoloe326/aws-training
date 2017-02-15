@@ -219,7 +219,7 @@ class RawReader(io.IOBase):
                          '']) # for right padding
 
         if len(line) > self.MAX_RECORD_LENGTH:
-            warning("record length > %s, skip..." % MAX_RECORD_LENGTH)
+            warning("record length > %s, skip..." % self.MAX_RECORD_LENGTH)
             return None
         else:
             # make each record same length for offset seek
