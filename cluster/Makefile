@@ -5,6 +5,9 @@
 #
 
 # Configure variables
+DEFAULT_AWS_REGION := us-west-2
+DEFAULT_AWS_BUCKET := dun-us-west-2
+DEFAULT_AWS_PROFILE := default
 TF_CONFIG_VARS := config.tfvars
 
 ######## DO NOT EDIT BELOW THIS UNLESS YOU KNOW WHAT YOU ARE DOING ########
@@ -13,6 +16,10 @@ TF_FLAGS := -var-file=$(TF_CONFIG_VARS)
 USER ?= `whoami`
 AS  := ansible
 ASP := ansible-playbook
+
+# Read input given by user, otherwise use default value
+read_input = $(shell read -p $(1) REPLY; \
+	if [ -z "$${REPLY}" ]; then echo $(2); else echo $${REPLY}; fi)
 
 all: help
 help:
@@ -30,10 +37,29 @@ help:
 ami:
 	./build_ami.sh
 
+.PHONY: config
+config:
+	@echo "Configuring Terraform..."
+	$(eval __bucket := $(call read_input, \
+		"AWS S3 bucket (default: $(DEFAULT_AWS_BUCKET)): ",\
+		$(DEFAULT_AWS_BUCKET)))
+	$(eval __region := $(call read_input, \
+		"AWS region (default: $(DEFAULT_AWS_REGION)): ",\
+		$(DEFAULT_AWS_REGION)))
+	$(eval __profile := $(call read_input, \
+		"AWS profile (default: $(DEFAULT_AWS_PROFILE)): ",\
+		$(DEFAULT_AWS_PROFILE)))
+	@$(TF) remote config -backend=s3 \
+		-backend-config="bucket=$(__bucket)" \
+		-backend-config="region=$(__region)" \
+		-backend-config="profile=$(__profile)" \
+		-backend-config="key=cluster.tfstate"
+
 .PHONY: plan
 plan:
 	@echo "Generating infrastructure plan..."
 	$(TF) validate
+	$(TF) remote pull
 	$(TF) plan $(TF_FLAGS)
 
 .PHONY: show
@@ -44,7 +70,9 @@ show:
 .PHONY: apply
 apply:
 	@echo "Applying infrastructure plan..."
+	$(TF) remote pull
 	$(TF) apply $(TF_FLAGS)
+	$(TF) remote push
 
 .PHONY: inventory
 inventory:
