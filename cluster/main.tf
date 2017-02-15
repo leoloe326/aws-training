@@ -382,6 +382,7 @@ resource "aws_route53_record" "webserver" {
 
 resource "aws_route53_record" "web" {
     zone_id = "${var.aws["route53_zone"]}"
+    count = "${var.webserver["count"] ? 1 : 0}"
     name    = "web"
     type    = "CNAME"
     ttl     = "300"
