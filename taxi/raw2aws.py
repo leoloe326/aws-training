@@ -150,6 +150,15 @@ class RawReader(io.IOBase):
 
         line = line.strip()
 
+        pickup_datetime = None
+        dropoff_datetime = None
+        pickup_longitude = None
+        pickup_latitude = None
+        dropoff_longitude = None
+        dropoff_latitude = None
+        trip_distance = None
+        fare_amount = None
+
         try:
             if self.color == 'green':
                 if self.year < 2015:
