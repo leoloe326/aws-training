@@ -62,6 +62,18 @@
     service: name=httpd state=started enabled=yes
     become: yes
 
+  - name: setup homepage
+    shell: "echo {{ inventory_hostname }} > /var/www/html/index.html"
+    args:
+      creates: "/var/www/html/index.html"
+    become: yes
+
+  - name: setup sub homepage
+    shell: "echo {{ inventory_hostname }} > /var/www/html/{{ inventory_hostname_short }}/index.html"
+    args:
+      creates: "/var/www/html/{{ inventory_hostname_short }}/index.html"
+    become: yes
+
   - name: start bokeh
     shell: "bokeh serve taxi --host web.bittiger.info:5006 &>bokeh-`date +%Y-%m-%d-%H-%M-%S`.log &"
     args:
