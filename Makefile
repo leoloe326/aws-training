@@ -18,6 +18,7 @@ help:
 	@echo "  bill         show AWS billing"
 	@echo "  benchmark    benchmark AWS resources"
 	@echo "  clean        clean project"
+	@echo "  version      show tools version"
 
 .PHONY: prepare
 prepare:
@@ -46,3 +47,15 @@ clean:
 	@cd scripts/ && ./ec2_benchmark.py --clean --verbose 2
 	@echo "Clean the project..."
 	rm -rf *.pyc */*.pyc
+
+.PHONY: version
+version:
+	@python --version
+	@git --version
+	@make -version | head -n 1
+	@terraform -v | head -n 1
+	@packer version | head -n 1
+	@ansible --version | head -n 1
+	@echo boto3 v`python -c 'import boto3; print boto3.__version__'`
+	@aws --version
+	@echo Branch `git rev-parse --abbrev-ref HEAD` on `git config --get remote.origin.url` : `git rev-parse HEAD`
