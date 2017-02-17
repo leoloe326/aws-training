@@ -5,12 +5,12 @@
             "Sid": "Stmt1486540554000",
             "Effect": "Allow",
             "Action": [
-                "s3:ListBucket"
+                "s3:ListBucket",
                 "s3:GetObject",
-                "s3:PutObject",
+                "s3:PutObject"
             ],
             "Resource": [
-                "arn:aws:s3:::*",
+                "arn:aws:s3:::*"
             ]
         },
         {
@@ -19,9 +19,9 @@
                 "logs:CreateLogGroup",
                 "logs:CreateLogStream",
                 "logs:PutLogEvents",
-                "logs:DescribeLogStreams",
+                "logs:DescribeLogStreams"
             ],
-            "Resources": [
+            "Resource": [
                 "arn:aws:logs:*:*:*"
             ]
         }
