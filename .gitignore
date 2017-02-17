@@ -7,3 +7,4 @@
 *.csv
 *.tfstate
 *.tfstate.backup
+hosts
