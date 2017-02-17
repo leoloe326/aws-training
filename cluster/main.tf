@@ -425,6 +425,7 @@ resource "aws_route53_record" "reducer_spot" {
     records = ["${element(aws_spot_instance_request.reducer.*.public_ip, count.index)}"]
 }
 
+### Output ###
 output "webservers"  {
     value = ["${aws_route53_record.webserver.*.fqdn}"]
 }
