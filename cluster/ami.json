@@ -30,9 +30,9 @@
         "sudo yum-config-manager --enable epel",
         "sudo yum -y update",
         "sudo yum -y install yum-utils emacs screen tmux iftop htop tcpdump wget strace lsof git",
-        "sudo yum -y install gcc gdb valgrind glibc.i686 glibc.x86_64 geos-devel",
+        "sudo yum -y install gcc gdb valgrind glibc.i686 glibc.x86_64 openssl-devel geos-devel",
         "sudo yum -y install python27 python27-test",
-        "sudo yum -y install openssl-devel",
+        "sudo yum -y install awslogs",
 
         "sudo yum -y remove java-1.7.0-openjdk",
         "sudo sh /tmp/install_java.sh",
