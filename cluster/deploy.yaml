@@ -44,10 +44,26 @@
       accept_hostkey: yes
       update: yes
 
+  - name: copy awslogs configuration files
+    copy: src="{{ item }}" dest="/etc/awslogs/" owner=root mode=600
+    with_fileglob:
+      - awslogs/*
+    become: yes
+    notify: restart awslogs
+
+  - name: start awslogs service
+    service: name=awslogs state=started enabled=yes
+    become: yes
+
+  handlers:
+  - name: restart awslogs
+    service: name=awslogs state=restarted
+    become: yes
+
 - name: webservers
   hosts: webservers
   vars_files:
-  - cluster_config.yaml
+  - config.yaml
   remote_user: "{{ deploy_user }}"
   tasks:
   - name: ensure apache is at the latest version
