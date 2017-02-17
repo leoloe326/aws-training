@@ -8,7 +8,7 @@
 DEFAULT_AWS_REGION := us-west-2
 DEFAULT_AWS_BUCKET := dun-us-west-2
 DEFAULT_AWS_PROFILE := default
-TF_CONFIG_VARS := config.tfvars
+TF_CONFIG_VARS := cluster.tfvars
 
 ######## DO NOT EDIT BELOW THIS UNLESS YOU KNOW WHAT YOU ARE DOING ########
 TF := terraform
@@ -82,7 +82,7 @@ inventory:
 .PHONY: deploy
 deploy:
 	@echo "Deploying Ansible playbook..."
-	$(ASP) cluster.yaml
+	$(ASP) deploy.yaml
 
 .PHONY: destroy
 destroy:

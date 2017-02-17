@@ -2,7 +2,7 @@
 - name: site
   hosts: webservers:mappers:reducers
   vars_files:
-  - cluster_config.yaml
+  - config.yaml
   remote_user: ec2-user
   tasks:
   - name: install packages
