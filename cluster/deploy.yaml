@@ -1,6 +1,6 @@
 ---
 - name: site
-  hosts: webservers:mappers:reducers
+  hosts: all
   vars_files:
   - config.yaml
   remote_user: ec2-user
