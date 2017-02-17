@@ -29,7 +29,6 @@ help:
 	@echo "  plan        create infrastructure plan"
 	@echo "  show        show infrasctructure plan"
 	@echo "  apply       apply infrastructure plan"
-	@echo "  inventory   create Ansible inventory file"
 	@echo "  deploy      deploy ansible playbook"
 	@echo "  destroy     destroy infrastructure"
 
@@ -73,9 +72,6 @@ apply:
 	$(TF) remote pull
 	$(TF) apply $(TF_FLAGS)
 	$(TF) remote push
-
-.PHONY: inventory
-inventory:
 	@echo "Creating Ansible inventory..."
 	$(TF) output -json | ./json2ini.py --keywords webservers,mappers,reducers -o hosts
 
