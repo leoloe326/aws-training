@@ -302,11 +302,10 @@ class RawReader(io.IOBase):
             return self.buf.get_bytes(size)
 
     def readline(self):
-        while True:
-            line = self.data.readline()
-            if not line: return ''
-            line = self.reformat(line)
-            if line: return line
+        line = self.data.readline()
+        if not line: return ''
+        line = self.reformat(line)
+        if line: return line
 
     def readlines(self):
         while True:
