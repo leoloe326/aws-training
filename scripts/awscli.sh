@@ -147,6 +147,14 @@ function terminate_instances() {
 
 [ 9 = $CHOICE ] && CMD="find_vpc"
 
+[ 10 = $CHOICE ] && CMD="aws cloudwatch list-metrics"
+
+[ 11 = $CHOICE ] && CMD="aws cloudwatch list-metrics --region us-east-1"
+
+[ 12 = $CHOICE ] && CMD="aws cloudwatch list-metrics --region us-east-1 --metric-name EstimatedCharges"
+
+[ 13 = $CHOICE ] && CMD="aws cloudwatch get-metric-statistics --namespace AWS/EC2 --metric-name CPUUtilization --dimensions Name=InstanceId,Value=i-123456 --start-time '2017-02-10T00:00:00Z' --end-time '2014-11-12T00:00:00Z' --period 300 --statistics {'Average', 'Maximum'}"
+
 # Use JSON to pass template
 #  --cli-input-json
 #  --generate-cli-skeleton
