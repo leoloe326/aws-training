@@ -103,7 +103,7 @@ class RecordReader(io.IOBase):
 
             self.data = open(path, 'r')
             self.data.seek(self.MAX_RECORD_LENGTH * self.start)
-            info("proc %d read: file://%s [%d, %d]" % (nth, path, self.start, self.end))
+            info("proc %02d read: file://%s [%d, %d]" % (nth, path, self.start, self.end))
 
         elif source.startswith('s3://'):
             self.data_type = self.DATA_S3
@@ -119,6 +119,13 @@ class RecordReader(io.IOBase):
             # HOWTO: read object by range
             key = '%s-%s-%02d.csv' % (color, year, month)
             obj = bucket.Object(key)
+
+            self.n_records = obj.content_length / self.MAX_RECORD_LENGTH
+            self.end = min(self.n_records, end)
+            r = range(self.start, self.end+1, (self.end - self.start) / nParts)
+            self.start, self.end = r[nth], r[nth+1]
+            info("proc %02d read: s3://%s [%d, %d]" % (nth, key, self.start, self.end))
+
             bytes_range = 'bytes=%d-%d' % \
                 (self.start * self.MAX_RECORD_LENGTH, \
                  self.end * self.MAX_RECORD_LENGTH - 1)
@@ -211,15 +218,15 @@ class NYCTaxiStat:
             if pickup_district and dropoff_district: break
 
         self.total += 1
-        if pickup_district is None or dropoff_district is None:
+        if pickup_district is None and dropoff_district is None:
             warning("cannot locate trip (%f, %f) => (%f, %f)" % \
                 (pickup_longitude, pickup_latitude, \
                  dropoff_longitude, dropoff_latitude))
             self.invalid += 1
             return None
 
-        self.pickups[pickup_district] += 1
-        self.dropoffs[dropoff_district] += 1
+        if pickup_district:  self.pickups[pickup_district] += 1
+        if dropoff_district: self.dropoffs[dropoff_district] += 1
         self.hour[pickup_datetime.hour] += 1
 
         if   trip_distance >= 20: self.distance[20] += 1
@@ -260,11 +267,14 @@ class NYCTaxiStat:
         for fare, count in self.fare.items(): print fare, count
 
     def run(self):
-        with self.reader.open('green', 2016, 01, \
-            self.opts.src, self.opts.start, self.opts.end, \
-            self.opts.procs, self.proc) as fin:
-            for line in fin.readlines():
-                self.search(line)
+        try:
+            with self.reader.open('green', 2016, 01, \
+                self.opts.src, self.opts.start, self.opts.end, \
+                self.opts.procs, self.proc) as fin:
+                for line in fin.readlines():
+                    self.search(line)
+        except KeyboardInterrupt as e:
+            return
 
 def start_process(args):
     opts, index = args
@@ -276,9 +286,16 @@ if __name__ == '__main__':
     opts = parse_argv()
     tasks = []
 
+    # map
     for i in range(opts.procs): tasks.append((opts, i))
-    procs = multiprocessing.Pool(processes=opts.procs)
-    results = procs.map(start_process, tasks)
+
+    try:
+        procs = multiprocessing.Pool(processes=opts.procs)
+        results = procs.map(start_process, tasks)
+    except Exception as e:
+        fatal(e)
+
+    # intermediate reduce
     master = results[0]
     for res in results[1:]: master += res
     master.show()
