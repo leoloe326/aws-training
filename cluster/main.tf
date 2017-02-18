@@ -49,6 +49,11 @@ variable "webserver" {
         root_volume_size     = ""
         root_volume_delete   = ""
         in_http_cidr_block   = ""
+
+		asg_instance_types   = ""
+		asg_instance_counts  = ""
+		spot_instance_types  = ""
+		spot_instance_counts = ""
     }
 }
 
@@ -164,6 +169,53 @@ resource "aws_spot_instance_request" "mapper" {
         Group       = "mapper"
         Name        = "mapper${count.index}"
     }
+}
+
+# Auto-scaling and spot instances
+resource "aws_launch_configuration" "mapper" {
+	image_id = "${var.aws["ami"]}"
+	count = "${length(split(",", var.mapper["asg_instance_types"]))}"
+	name  = "mapper-la-${element(split(",", var.mapper["asg_instance_types"]), count.index)}"
+	instance_type = "${element(split(",", var.mapper["asg_instance_types"]), count.index)}"
+	key_name = "${var.aws["key_name"]}"
+	security_groups = [ "${aws_security_group.default.id}", "${aws_security_group.mapper.id}" ]
+	#user_data =
+
+	enable_monitoring = "${var.aws["monitoring"]}"
+	iam_instance_profile = "${var.aws["iam_instance_profile"]}"
+
+	lifecycle {
+		create_before_destroy = true
+	}
+}
+
+resource "aws_autoscaling_group" "mapper" {
+	count = "${length(split(",", var.mapper["asg_instance_types"]))}"
+	name  = "mapper-asg-${element(split(",", var.mapper["asg_instance_types"]), count.index)}"
+	min_size = 0
+	max_size         = "${element(split(",", var.mapper["asg_instance_counts"]), count.index)}"
+	desired_capacity = "${element(split(",", var.mapper["asg_instance_counts"]), count.index)}"
+    termination_policies = [ "${split(",", var.mapper["asg_termination_policies"])}" ]
+	launch_configuration = "${element(aws_launch_configuration.mapper.*.name, count.index)}"
+	vpc_zone_identifier  = [ "${var.aws["subnet_id"]}" ]
+
+	tag {
+		key                 = "Environment"
+        value               = "${var.tags["environment"]}"
+		propagate_at_launch = true
+	}
+
+	tag {
+		key                 = "User"
+        value               = "${var.tags["user"]}"
+		propagate_at_launch = true
+	}
+
+	tag {
+		key                 = "Group"
+        value               = "mapper"
+		propagate_at_launch = true
+	}
 }
 
 # Reducer

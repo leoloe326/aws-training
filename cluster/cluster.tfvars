@@ -31,7 +31,7 @@ tags = {
 # Web Server Settings
 webserver = {
   instance_type        = "t2.micro"
-  count                = "2"
+  count                = "1"
   root_volume_type     = "gp2"
   root_volume_size     = "8"
   in_http_cidr_block   = "0.0.0.0/0"
@@ -39,7 +39,7 @@ webserver = {
 
 # Mapper Settings
 mapper = {
-  instance_type        = "t2.micro"
+  instance_type        = "c4.8xlarge"
   count                = "0"
   spot_price           = "1.5"
   ebs_device_name      = "/dev/sdb"
@@ -47,6 +47,12 @@ mapper = {
   ebs_volume_type      = "gp2"
   ebs_volume_deletion  = "true"
   out_sqs_cidr_block   = "0.0.0.0/0"
+
+  asg_instance_types   = "c4.large,c4.2xlarge,c4.4xlarge"
+  asg_instance_counts  = "0,0,0"
+  asg_termination_policies = "ClosestToNextInstanceHour,OldestInstance"
+  spot_instance_types  = "c3.large,c3.2xlarge,c4.4xlarge"
+  spot_instance_counts = "0,0,0"
 }
 
 # Reducer Settings
