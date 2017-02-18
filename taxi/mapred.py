@@ -26,6 +26,15 @@ def parse_argv():
     parser.add_argument('--src', metavar='URI', type=str,
         default='s3://aws-nyc-taxi-data', help="data source directory")
 
+    parser.add_argument('-c', '--color',  metavar='yellow|green',
+        type=str, default='green', help="color of record")
+
+    parser.add_argument('-y', '--year',  metavar='YEAR',
+        type=int, default=2016, help="year of record")
+
+    parser.add_argument('-m', '--month',  metavar='MONTH',
+        type=int, default=1, help="month of record")
+
     parser.add_argument('-s', '--start',  metavar='NUM', type=int,
         default=0, help="start record index")
 
@@ -59,10 +68,17 @@ class RecordReader(io.IOBase):
 
     def open(self, color, year, month, source,
              start=0, end=sys.maxint, nParts=1, nth=0):
-        self.color = color
-        self.year = year
-        self.month = month
-        self.source = source
+
+        def create_range(path):
+            if self.start < 0 or self.start > self.end:
+                raise ValueError("invalid range [%d, %d] for %s (records=%d)" %\
+                    (self.start, self.end, path, self.n_records))
+
+            self.end = min(self.n_records, end)
+            r = range(self.start, self.end+1, (self.end - self.start) / nParts)
+            self.start, self.end = r[nth], r[nth+1]
+            info("proc %02d read: %s [%d, %d]" % (nth, path, self.start, self.end))
+
         self.start = start
         self.end = end
         self.skip = None
@@ -84,26 +100,15 @@ class RecordReader(io.IOBase):
 
             path = '%s/%s-%s-%02d.csv' % (directory, color, year, month)
             if not os.path.exists(path):
-                fatal("%s does not exist." % path)
+                raise OSError("%s does not exist." % path)
             if not os.path.isfile(path):
-                fatal("%s is not a regular file." % path)
+                raise OSError("%s is not a regular file." % path)
 
             self.n_records = os.path.getsize(path) / self.MAX_RECORD_LENGTH
-
-            if self.start < 0 or self.start > self.end:
-                fatal("invalid range [%d, %d] for file://%s (records=%d)" %\
-                    (self.start, self.end, path, self.n_records))
-
-            self.end = min(self.n_records, end)
-
-            #self.start, self.end = \
-            #    range(self.start, self.end+1, (self.end - self.start) / nParts)
-            r = range(self.start, self.end+1, (self.end - self.start) / nParts)
-            self.start, self.end = r[nth], r[nth+1]
+            create_range('file://' + path)
 
             self.data = open(path, 'r')
             self.data.seek(self.MAX_RECORD_LENGTH * self.start)
-            info("proc %02d read: file://%s [%d, %d]" % (nth, path, self.start, self.end))
 
         elif source.startswith('s3://'):
             self.data_type = self.DATA_S3
@@ -121,10 +126,7 @@ class RecordReader(io.IOBase):
             obj = bucket.Object(key)
 
             self.n_records = obj.content_length / self.MAX_RECORD_LENGTH
-            self.end = min(self.n_records, end)
-            r = range(self.start, self.end+1, (self.end - self.start) / nParts)
-            self.start, self.end = r[nth], r[nth+1]
-            info("proc %02d read: s3://%s [%d, %d]" % (nth, key, self.start, self.end))
+            create_range('s3://' + key)
 
             bytes_range = 'bytes=%d-%d' % \
                 (self.start * self.MAX_RECORD_LENGTH, \
@@ -268,7 +270,7 @@ class NYCTaxiStat:
 
     def run(self):
         try:
-            with self.reader.open('green', 2016, 01, \
+            with self.reader.open(self.opts.color, self.opts.year, self.opts.month, \
                 self.opts.src, self.opts.start, self.opts.end, \
                 self.opts.procs, self.proc) as fin:
                 for line in fin.readlines():
