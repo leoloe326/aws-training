@@ -319,7 +319,7 @@ resource "aws_alb" "web" {
   subnets = ["${split(",", var.aws["subnet_ids"])}"]
   security_groups = [ "${aws_security_group.default.id}", "${aws_security_group.webserver.id}" ]
   enable_deletion_protection = false
-  count = "${(var.aws["use_load_balancer"] && var.webserver["count"]) ? 1 : 0}"
+  count = "${(var.aws["use_load_balancer"] && var.webserver["count"] > 0) ? 1 : 0}"
 
   tags {
     Environment = "${var.tags["environment"]}"
@@ -347,7 +347,7 @@ resource "aws_alb_listener" "web" {
   load_balancer_arn = "${aws_alb.web.id}"
   port              = "80"
   protocol          = "HTTP"
-  count             = "${(var.aws["use_load_balancer"] && var.webserver["count"]) ? 1 : 0}"
+  count             = "${(var.aws["use_load_balancer"] && var.webserver["count"] > 0) ? 1 : 0}"
 
   default_action {
     target_group_arn = "${element(aws_alb_target_group.web.*.arn, 0)}"
@@ -383,7 +383,7 @@ resource "aws_route53_record" "webserver" {
 
 resource "aws_route53_record" "web" {
     zone_id = "${var.aws["route53_zone"]}"
-    count = "${(var.aws["use_load_balancer"] && var.webserver["count"]) ? 1 : 0}"
+    count = "${(var.aws["use_load_balancer"] && var.webserver["count"] > 0) ? 1 : 0}"
     name    = "web"
     type    = "CNAME"
     ttl     = "300"
