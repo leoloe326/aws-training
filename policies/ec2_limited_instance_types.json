@@ -11,11 +11,11 @@
     },
     {
       "Effect": "Allow",
-      "Action": "ec2:RunInstances
+      "Action": "ec2:RunInstances",
       "NotResource": [
 	  	"arn:aws:ec2:us-west-2:*:instance",
 	  	"arn:aws:ec2:us-west-2:*:instance/*"
-	  ],
+	  ]
     },
     {
       "Effect": "Allow",

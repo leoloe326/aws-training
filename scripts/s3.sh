@@ -11,7 +11,8 @@ fi
 CHOICE=$1
 CMD=''
 
-AWS_USER_ID=$(aws iam list-users --query Users[].UserId --output text | tr '[:upper:]' '[:lower:]')
+USER_NAME=${USER_NAME:-"admin"}
+AWS_USER_ID=$(aws iam get-user --user-name $USER_NAME --output text | cut -f 5,5 | awk '{print tolower($0)}')
 SRC_BUCKET="s3-cli-demo-${AWS_USER_ID}-src"
 DST_BUCKET="s3-cli-demo-${AWS_USER_ID}-dst"
 

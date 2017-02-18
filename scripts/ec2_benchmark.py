@@ -271,6 +271,8 @@ s3 =
                 self.verbose(stderr.read(), 2)
 
                 # Homework: iPerf
+	   if 'net' in self.config['tests']:
+
 
     def clean(self):
         for instance in self.get_instances():
