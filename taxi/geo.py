@@ -7,6 +7,15 @@
 
 import json
 import shapely.geometry
+from collections import OrderedDict
+
+NYC_BOROUGHS = OrderedDict({
+    1: 'Manhattan',
+    2: 'Bronx',
+    3: 'Brooklyn',
+    4: 'Queens',
+    5: 'Staten Island'
+})
 
 class NYCGeoPolygon:
     def __init__(self, index, name, polygon):

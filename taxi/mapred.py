@@ -7,6 +7,7 @@ import argparse
 import datetime
 import sys
 import os.path
+import time
 import io
 import fileinput
 import multiprocessing
@@ -16,8 +17,11 @@ import boto3
 from collections import defaultdict
 from collections import Counter
 
-from geo import NYCGeoPolygon
+from geo import NYC_BOROUGHS, NYCGeoPolygon
 from raw2aws import RawReader, fatal, warning, info
+
+NYC_DISTRICTS_JSON = 'nyc_community_districts.geojson'
+NYC_BOROUGHS_JSON = 'nyc_boroughs.geojson'
 
 def parse_argv():
     parser = argparse.ArgumentParser(
@@ -40,6 +44,9 @@ def parse_argv():
 
     parser.add_argument('-e', '--end',  metavar='NUM', type=int,
         default=sys.maxint, help="end record index")
+
+    parser.add_argument('-r', '--report', action='store_true',
+        default=False, help="report results")
 
     parser.add_argument('-p', '--procs', type=int,
         default=1, help="number of concurrent processes")
@@ -162,11 +169,11 @@ class NYCTaxiStat:
         self.cwd = os.path.dirname(__file__)
         self.reader = RecordReader()
         self.proc = proc
+        self.elapsed = 0
 
         # Load Boroughs and Community Districts information
         # self.boroughs = NYCGeoPolygon.load(self.get_fullpath('nyc_boroughs.geojson'))
-        self.districts = NYCGeoPolygon.load(
-            os.path.join(self.cwd, 'nyc_community_districts.geojson'))
+        self.districts = NYCGeoPolygon.load(os.path.join(self.cwd, NYC_DISTRICTS_JSON))
 
         self.total = 0    # number of total records
         self.invalid = 0  # number of invalid records
@@ -186,6 +193,7 @@ class NYCTaxiStat:
         self.trip_time += x.trip_time
         self.distance += x.distance
         self.fare += x.fare
+        self.elapsed = max(self.elapsed, x.elapsed)
         return self
 
     def search(self, line):
@@ -239,10 +247,11 @@ class NYCTaxiStat:
         else:                     self.distance[0]  += 1
 
         if   trip_time >= 3600:   self.trip_time[3600] += 1
+        elif trip_time >= 2700:   self.trip_time[2700] += 1
         elif trip_time >= 1800:   self.trip_time[1800] += 1
         elif trip_time >= 900:    self.trip_time[900]  += 1
-        elif trip_time >= 450:    self.trip_time[450]  += 1
-        elif trip_time >= 225:    self.trip_time[225]  += 1
+        elif trip_time >= 600:    self.trip_time[600]  += 1
+        elif trip_time >= 300:    self.trip_time[300]  += 1
         else:                     self.trip_time[0]    += 1
 
         if   fare_amount >= 100:  self.fare[100] += 1
@@ -252,23 +261,71 @@ class NYCTaxiStat:
         elif fare_amount >= 5:    self.fare[5]   += 1
         else:                     self.fare[0]   += 1
 
-    def show(self):
-        #for district in self.districts:
-        #    print district.index, self.pickups[district.index], self.dropoffs[district.index]
+    def report(self):
+        width = 50
+        report_date = datetime.datetime(self.opts.year, self.opts.month, 1)
+        title = "NYC Taxi Statistics: %s Cab, %s" %\
+            (self.opts.color.capitalize(), report_date.strftime('%B %Y'))
+        print title.center(width, '=')
 
-        print "Hour Distribution"
-        for hour, count in self.hour.items(): print hour, count
+        # Aggregate Districts to Boroughs
+        pickups = Counter()
+        dropoffs = Counter()
+        for district in self.districts:
+            borough = district.index / 10000
+            pickups[borough] += self.pickups[district.index]
+            dropoffs[borough] += self.dropoffs[district.index]
 
-        print "Distance Distribution"
-        for dist, count in self.distance.items(): print dist, count
+        format_str = "%14s: %16s %16s"
+        print format_str % ('Borough', 'Pickups', 'Dropoffs')
+        for index, name in NYC_BOROUGHS.items():
+            print format_str % (name, pickups[index], dropoffs[index])
 
-        print "Trip Time Distribution"
-        for time, count in self.trip_time.items(): print time, count
+        print "Pickup Time".center(width, '-')
+        format_str = "%14s: %33s"
+        #print format_str % ('Time', 'Pickups')
+        for hour in range(24):
+            if hour in self.hour:
+                hour_str = '%d:00 ~ %d:59' % (hour, hour)
+                print format_str % (hour_str, self.hour[hour])
 
-        print "Fare Distribution"
-        for fare, count in self.fare.items(): print fare, count
+        print "Trip Distance (miles)".center(width, '-')
+        format_str = "%14s: %33s"
+        #print format_str % ('Miles', 'Trips')
+        print format_str % ('0 ~ 1',   self.distance[0])
+        print format_str % ('1 ~ 2',   self.distance[1])
+        print format_str % ('2 ~ 5',   self.distance[2])
+        print format_str % ('5 ~ 10',  self.distance[5])
+        print format_str % ('10 ~ 20', self.distance[10])
+        print format_str % ('> 20',    self.distance[20])
+
+        print "Trip Time (minutes)".center(width, '-')
+        format_str = "%14s: %33s"
+        #print format_str % ('Minutes', 'Trips')
+        print format_str % ('0 ~ 5',   self.trip_time[0])
+        print format_str % ('5 ~ 10',  self.trip_time[300])
+        print format_str % ('10 ~ 15', self.trip_time[600])
+        print format_str % ('15 ~ 30', self.trip_time[900])
+        print format_str % ('30 ~ 45', self.trip_time[1800])
+        print format_str % ('45 ~ 60', self.trip_time[2700])
+        print format_str % ('> 60',    self.trip_time[3600])
+
+        print "Fare (dollars)".center(width, '-')
+        format_str = "%14s: %33s"
+        #print format_str % ('Dollars', 'Trips')
+        print format_str % ('0 ~ 5',    self.fare[0])
+        print format_str % ('5 ~ 10',   self.fare[5])
+        print format_str % ('10 ~ 25',  self.fare[10])
+        print format_str % ('25 ~ 50',  self.fare[25])
+        print format_str % ('50 ~ 100', self.fare[50])
+        print format_str % ('> 100',    self.fare[100])
+
+        print "Done, took %.2f seconds using %d processes." %\
+            (self.elapsed, self.opts.procs)
 
     def run(self):
+        self.elapsed = time.time()
+
         try:
             with self.reader.open(self.opts.color, self.opts.year, self.opts.month, \
                 self.opts.src, self.opts.start, self.opts.end, \
@@ -277,6 +334,8 @@ class NYCTaxiStat:
                     self.search(line)
         except KeyboardInterrupt as e:
             return
+
+        self.elapsed = time.time() - self.elapsed
 
 def start_process(args):
     opts, index = args
@@ -300,4 +359,4 @@ if __name__ == '__main__':
     # intermediate reduce
     master = results[0]
     for res in results[1:]: master += res
-    master.show()
+    if opts.report: master.report()
