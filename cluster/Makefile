@@ -5,7 +5,10 @@
 #
 
 # Configure variables
-TF_CONFIG_VARS := config.tfvars
+DEFAULT_AWS_REGION := us-west-2
+DEFAULT_AWS_BUCKET := dun-us-west-2
+DEFAULT_AWS_PROFILE := default
+TF_CONFIG_VARS := cluster.tfvars
 
 ######## DO NOT EDIT BELOW THIS UNLESS YOU KNOW WHAT YOU ARE DOING ########
 TF := terraform
@@ -13,6 +16,10 @@ TF_FLAGS := -var-file=$(TF_CONFIG_VARS)
 USER ?= `whoami`
 AS  := ansible
 ASP := ansible-playbook
+
+# Read input given by user, otherwise use default value
+read_input = $(shell read -p $(1) REPLY; \
+	if [ -z "$${REPLY}" ]; then echo $(2); else echo $${REPLY}; fi)
 
 all: help
 help:
@@ -22,7 +29,6 @@ help:
 	@echo "  plan        create infrastructure plan"
 	@echo "  show        show infrasctructure plan"
 	@echo "  apply       apply infrastructure plan"
-	@echo "  inventory   create Ansible inventory file"
 	@echo "  deploy      deploy ansible playbook"
 	@echo "  destroy     destroy infrastructure"
 
@@ -30,10 +36,29 @@ help:
 ami:
 	./build_ami.sh
 
+.PHONY: config
+config:
+	@echo "Configuring Terraform..."
+	$(eval __bucket := $(call read_input, \
+		"AWS S3 bucket (default: $(DEFAULT_AWS_BUCKET)): ",\
+		$(DEFAULT_AWS_BUCKET)))
+	$(eval __region := $(call read_input, \
+		"AWS region (default: $(DEFAULT_AWS_REGION)): ",\
+		$(DEFAULT_AWS_REGION)))
+	$(eval __profile := $(call read_input, \
+		"AWS profile (default: $(DEFAULT_AWS_PROFILE)): ",\
+		$(DEFAULT_AWS_PROFILE)))
+	@$(TF) remote config -backend=s3 \
+		-backend-config="bucket=$(__bucket)" \
+		-backend-config="region=$(__region)" \
+		-backend-config="profile=$(__profile)" \
+		-backend-config="key=cluster.tfstate"
+
 .PHONY: plan
 plan:
 	@echo "Generating infrastructure plan..."
 	$(TF) validate
+	$(TF) remote pull
 	$(TF) plan $(TF_FLAGS)
 
 .PHONY: show
@@ -44,17 +69,16 @@ show:
 .PHONY: apply
 apply:
 	@echo "Applying infrastructure plan..."
+	$(TF) remote pull
 	$(TF) apply $(TF_FLAGS)
-
-.PHONY: inventory
-inventory:
+	$(TF) remote push
 	@echo "Creating Ansible inventory..."
-	$(TF) output -json | ./json2ini.py --keywords webserver,mapper,reducer -o hosts
+	$(TF) output -json | ./json2ini.py --keywords webservers,mappers,reducers -o hosts
 
 .PHONY: deploy
 deploy:
 	@echo "Deploying Ansible playbook..."
-	$(ASP) cluster.yaml
+	$(ASP) deploy.yaml
 
 .PHONY: destroy
 destroy:

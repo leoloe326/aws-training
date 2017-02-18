@@ -4,5 +4,7 @@
 *.key
 .DS_Store
 *.retry
+*.csv
 *.tfstate
 *.tfstate.backup
+hosts

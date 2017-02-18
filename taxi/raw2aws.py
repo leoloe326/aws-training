@@ -83,9 +83,9 @@ def parse_argv():
         dest='procs', default=1,
         help="number of parallel process")
 
-    parser.add_argument("--grant-full-control", action='store_true',
-        dest='grant_full_control', default=False,
-        help="grant bucket-owner-full-control access for cross-account copy")
+    parser.add_argument("--cross-account", action='store_true',
+        dest='cross_account', default=False,
+        help="enable cross-account copy")
 
     args = parser.parse_args()
 
@@ -149,6 +149,15 @@ class RawReader(io.IOBase):
             return int(delta.total_seconds())
 
         line = line.strip()
+
+        pickup_datetime = None
+        dropoff_datetime = None
+        pickup_longitude = None
+        pickup_latitude = None
+        dropoff_longitude = None
+        dropoff_latitude = None
+        trip_distance = None
+        fare_amount = None
 
         try:
             if self.color == 'green':
@@ -219,7 +228,7 @@ class RawReader(io.IOBase):
                          '']) # for right padding
 
         if len(line) > self.MAX_RECORD_LENGTH:
-            warning("record length > %s, skip..." % MAX_RECORD_LENGTH)
+            warning("record length > %s, skip..." % self.MAX_RECORD_LENGTH)
             return None
         else:
             # make each record same length for offset seek
@@ -293,11 +302,10 @@ class RawReader(io.IOBase):
             return self.buf.get_bytes(size)
 
     def readline(self):
-        while True:
-            line = self.data.readline()
-            if not line: return ''
-            line = self.reformat(line)
-            if line: return line
+        line = self.data.readline()
+        if not line: return ''
+        line = self.reformat(line)
+        if line: return line
 
     def readlines(self):
         while True:
@@ -362,9 +370,19 @@ class Raw2AWS:
 
             key = '%s-%s-%02d.csv' % (self.opts.color, date.year, date.month)
             obj = bucket.Object(key)
-            obj.upload_fileobj(fin)
-            if self.opts.grant_full_control:
-                obj.Acl().put(ACL='bucket-owner-full-control')
+            args, config = None, None
+            try:
+                if self.opts.cross_account:
+                    # HOWTO: cross-account copy
+                    # need both acl and multipart upload threshold
+                    # https://github.com/aws/aws-cli/issues/1674
+                    config = boto3.s3.transfer.TransferConfig(
+                        multipart_threshold=4 * (1024 ** 3))
+                    args = {'ACL': 'bucket-owner-full-control'}
+                obj.upload_fileobj(fin, ExtraArgs=args, Config=config)
+            except botocore.exceptions.ClientError as e:
+                error_code = int(e.response['Error']['Code'])
+                fatal("%s" % error_code)
 
             if self.opts.tagging:
                 # HOWTO: tagging object
@@ -409,8 +427,11 @@ def main():
         args_copy.start, args_copy.end = date, date
         tasks.append(args_copy)
 
-    procs = multiprocessing.Pool(processes=args.procs)
-    procs.map(start_process, tasks)
+    try:
+        procs = multiprocessing.Pool(processes=args.procs)
+        procs.map(start_process, tasks)
+    except Exception as e:
+        fatal(e)
 
 if __name__ == '__main__':
     main()
