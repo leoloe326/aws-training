@@ -31,7 +31,7 @@ tags = {
 # Web Server Settings
 webserver = {
   instance_type        = "t2.micro"
-  count                = "1"
+  count                = "2"
   root_volume_type     = "gp2"
   root_volume_size     = "8"
   in_http_cidr_block   = "0.0.0.0/0"
@@ -40,10 +40,10 @@ webserver = {
 # Mapper Settings
 mapper = {
   instance_type        = "t2.micro"
-  count                = "1"
+  count                = "0"
   spot_price           = "1.5"
   ebs_device_name      = "/dev/sdb"
-  ebs_volume_size      = 1
+  ebs_volume_size      = 2
   ebs_volume_type      = "gp2"
   ebs_volume_deletion  = "true"
   out_sqs_cidr_block   = "0.0.0.0/0"
