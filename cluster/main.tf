@@ -175,11 +175,11 @@ resource "aws_spot_instance_request" "mapper" {
 resource "aws_launch_configuration" "mapper" {
 	image_id = "${var.aws["ami"]}"
 	count = "${length(split(",", var.mapper["asg_instance_types"]))}"
-	name  = "mapper-la-${element(split(",", var.mapper["asg_instance_types"]), count.index)}"
+	name  = "mapper-${element(split(",", var.mapper["asg_instance_types"]), count.index)}"
 	instance_type = "${element(split(",", var.mapper["asg_instance_types"]), count.index)}"
 	key_name = "${var.aws["key_name"]}"
 	security_groups = [ "${aws_security_group.default.id}", "${aws_security_group.mapper.id}" ]
-	#user_data =
+	user_data = "${file("userdata.sh")}"
 
 	enable_monitoring = "${var.aws["monitoring"]}"
 	iam_instance_profile = "${var.aws["iam_instance_profile"]}"
@@ -191,7 +191,7 @@ resource "aws_launch_configuration" "mapper" {
 
 resource "aws_autoscaling_group" "mapper" {
 	count = "${length(split(",", var.mapper["asg_instance_types"]))}"
-	name  = "mapper-asg-${element(split(",", var.mapper["asg_instance_types"]), count.index)}"
+	name  = "mapper-${element(split(",", var.mapper["asg_instance_types"]), count.index)}"
 	min_size = 0
 	max_size         = "${element(split(",", var.mapper["asg_instance_counts"]), count.index)}"
 	desired_capacity = "${element(split(",", var.mapper["asg_instance_counts"]), count.index)}"
@@ -214,6 +214,12 @@ resource "aws_autoscaling_group" "mapper" {
 	tag {
 		key                 = "Group"
         value               = "mapper"
+		propagate_at_launch = true
+	}
+
+	tag {
+		key                 = "Name"
+        value               = "mapper-asg"
 		propagate_at_launch = true
 	}
 }

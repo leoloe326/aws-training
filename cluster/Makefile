@@ -10,6 +10,9 @@ DEFAULT_AWS_BUCKET := dun-us-west-2
 DEFAULT_AWS_PROFILE := default
 TF_CONFIG_VARS := cluster.tfvars
 
+USERDATA_BUCKET := dun-us-west-2/aws
+USERDATA_SSHKEY := ~/.ssh/id_bitbucket_deploy
+
 ######## DO NOT EDIT BELOW THIS UNLESS YOU KNOW WHAT YOU ARE DOING ########
 TF := terraform
 TF_FLAGS := -var-file=$(TF_CONFIG_VARS)
@@ -26,6 +29,7 @@ help:
 	@echo "usage: make <action>"
 	@echo "Available actions are:"
 	@echo "  ami         build customized AMI"
+	@echo "  userdata    upload userdata"
 	@echo "  plan        create infrastructure plan"
 	@echo "  show        show infrasctructure plan"
 	@echo "  apply       apply infrastructure plan"
@@ -35,6 +39,11 @@ help:
 .PHONY: ami
 ami:
 	./build_ami.sh
+
+.PHONY: userdata
+userdata:
+	aws s3 cp setup.sh s3://$(USERDATA_BUCKET)
+	aws s3 cp $(USERDATA_SSHKEY) s3://$(USERDATA_BUCKET)
 
 .PHONY: config
 config:
