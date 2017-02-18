@@ -31,7 +31,7 @@ tags = {
 # Web Server Settings
 webserver = {
   instance_type        = "t2.micro"
-  count                = "1"
+  count                = "0"
   root_volume_type     = "gp2"
   root_volume_size     = "8"
   in_http_cidr_block   = "0.0.0.0/0"
@@ -48,11 +48,19 @@ mapper = {
   ebs_volume_deletion  = "true"
   out_sqs_cidr_block   = "0.0.0.0/0"
 
+  use_asg              = false
   asg_instance_types   = "c4.large,c4.2xlarge,c4.4xlarge"
   asg_instance_counts  = "0,0,0"
   asg_termination_policies = "ClosestToNextInstanceHour,OldestInstance"
-  spot_instance_types  = "c3.large,c3.2xlarge,c4.4xlarge"
-  spot_instance_counts = "0,0,0"
+
+  use_spotfleet        = false
+  spot_instance_types  = "c3.large"
+  spot_instance_counts = "1"
+  spot_prices          = "0.5"
+  spot_iam_role = "arn:aws:iam::026979347307:role/MapperSpotFleetRole"
+  spot_allocation_strategy = "lowestPrice"
+  spot_valid_until = "2018-01-01T00:00:00Z"
+  spot_availability_zone = "us-west-2a"
 }
 
 # Reducer Settings

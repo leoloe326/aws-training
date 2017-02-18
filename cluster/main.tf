@@ -49,11 +49,6 @@ variable "webserver" {
         root_volume_size     = ""
         root_volume_delete   = ""
         in_http_cidr_block   = ""
-
-		asg_instance_types   = ""
-		asg_instance_counts  = ""
-		spot_instance_types  = ""
-		spot_instance_counts = ""
     }
 }
 
@@ -69,6 +64,19 @@ variable "mapper" {
         ebs_volume_size = ""
         ebs_volume_deletion = ""
 
+		use_asg                  = ""
+		asg_instance_types       = ""
+		asg_instance_counts      = ""
+		asg_termination_policies = ""
+
+		use_spotfeet             = ""
+		spot_instance_types      = ""
+		spot_instance_counts     = ""
+		spot_prices              = ""
+		spot_iam_role            = ""
+		spot_allocation_strategy = ""
+		spot_valid_until         = ""
+		spot_availability_zone   = ""
     }
 }
 
@@ -174,7 +182,7 @@ resource "aws_spot_instance_request" "mapper" {
 # Auto-scaling and spot instances
 resource "aws_launch_configuration" "mapper" {
 	image_id = "${var.aws["ami"]}"
-	count = "${length(split(",", var.mapper["asg_instance_types"]))}"
+	count = "${var.mapper["use_asg"] ? length(split(",", var.mapper["asg_instance_types"])) : 0}"
 	name  = "mapper-${element(split(",", var.mapper["asg_instance_types"]), count.index)}"
 	instance_type = "${element(split(",", var.mapper["asg_instance_types"]), count.index)}"
 	key_name = "${var.aws["key_name"]}"
@@ -190,7 +198,7 @@ resource "aws_launch_configuration" "mapper" {
 }
 
 resource "aws_autoscaling_group" "mapper" {
-	count = "${length(split(",", var.mapper["asg_instance_types"]))}"
+	count = "${var.mapper["use_asg"] ? length(split(",", var.mapper["asg_instance_types"])) : 0}"
 	name  = "mapper-${element(split(",", var.mapper["asg_instance_types"]), count.index)}"
 	min_size = 0
 	max_size         = "${element(split(",", var.mapper["asg_instance_counts"]), count.index)}"
@@ -221,6 +229,28 @@ resource "aws_autoscaling_group" "mapper" {
 		key                 = "Name"
         value               = "mapper-asg"
 		propagate_at_launch = true
+	}
+}
+
+resource "aws_spot_fleet_request" "mapper" {
+	iam_fleet_role = "${var.mapper["spot_iam_role"]}"
+	allocation_strategy = "${var.mapper["spot_allocation_strategy"]}"
+	valid_until = "${var.mapper["spot_valid_until"]}"
+	count = "${var.mapper["use_spotfleet"] ? length(split(",", var.mapper["spot_instance_types"])) : 0}"
+	target_capacity = "${element(split(",", var.mapper["spot_instance_counts"]), count.index)}"
+	spot_price = "${element(split(",", var.mapper["spot_prices"]), count.index)}"
+	terminate_instances_with_expiration = true
+	launch_specification {
+		ami = "${var.aws["ami"]}"
+		instance_type = "${element(split(",", var.mapper["spot_instance_types"]), count.index)}"
+		key_name = "${var.aws["key_name"]}"
+    	subnet_id = "${var.aws["subnet_id"]}"
+    	vpc_security_group_ids = [ "${aws_security_group.default.id}","${aws_security_group.mapper.id}" ]
+		monitoring = "${var.aws["monitoring"]}"
+		iam_instance_profile = "${var.aws["iam_instance_profile"]}"
+		weighted_capacity = 1
+		spot_price = "${element(split(",", var.mapper["spot_prices"]), count.index)}"
+		user_data = "${file("userdata.sh")}"
 	}
 }
 
@@ -266,7 +296,6 @@ resource "aws_spot_instance_request" "reducer" {
         Name        = "reducer${count.index}"
     }
 }
-
 
 ### Security Groups ###
 resource "aws_security_group" "default" {
