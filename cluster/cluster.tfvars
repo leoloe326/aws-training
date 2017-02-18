@@ -9,9 +9,10 @@ aws = {
   monitoring     = "false"
   vpc_id         = "vpc-51a73336"
   associate_public_ip_address = "true"
-  in_ssh_cidr_block = "0.0.0.0/0"
+  in_ssh_cidr_block    = "0.0.0.0/0"
   iam_instance_profile = "Taxi-EC2-Instance-Profile"
   use_spot_instances   = false
+  use_load_balancer    = false
 }
 
 # Terraform Settings
@@ -30,7 +31,7 @@ tags = {
 # Web Server Settings
 webserver = {
   instance_type        = "t2.micro"
-  count                = "0"
+  count                = "1"
   root_volume_type     = "gp2"
   root_volume_size     = "8"
   in_http_cidr_block   = "0.0.0.0/0"

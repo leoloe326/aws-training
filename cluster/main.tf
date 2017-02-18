@@ -19,6 +19,7 @@ variable "aws" {
   		iam_instance_profile = ""
         in_ssh_cidr_block = ""
 		use_spot_instances = ""
+		use_load_balancer = ""
     }
 }
 
@@ -318,7 +319,7 @@ resource "aws_alb" "web" {
   subnets = ["${split(",", var.aws["subnet_ids"])}"]
   security_groups = [ "${aws_security_group.default.id}", "${aws_security_group.webserver.id}" ]
   enable_deletion_protection = false
-  count = "${var.webserver["count"] ? 1 : 0}"
+  count = "${(var.aws["use_load_balancer"] && var.webserver["count"]) ? 1 : 0}"
 
   tags {
     Environment = "${var.tags["environment"]}"
@@ -331,12 +332,12 @@ resource "aws_alb_target_group" "web" {
   name     = "web${count.index}-target-group"
   port     = 80
   protocol = "HTTP"
-  count    = "${var.webserver["count"]}"
+  count    = "${var.aws["use_load_balancer"] ? var.webserver["count"] : 0}"
   vpc_id = "${var.aws["vpc_id"]}"
 }
 
 resource "aws_alb_target_group_attachment" "web" {
-  count            = "${var.webserver["count"]}"
+  count            = "${var.aws["use_load_balancer"] ? var.webserver["count"] : 0}"
   target_group_arn = "${element(aws_alb_target_group.web.*.arn, count.index)}"
   target_id        = "${element(aws_instance.webserver.*.id, count.index)}"
   port = 80
@@ -346,7 +347,7 @@ resource "aws_alb_listener" "web" {
   load_balancer_arn = "${aws_alb.web.id}"
   port              = "80"
   protocol          = "HTTP"
-  count = "${var.webserver["count"] ? 1 : 0}"
+  count             = "${(var.aws["use_load_balancer"] && var.webserver["count"]) ? 1 : 0}"
 
   default_action {
     target_group_arn = "${element(aws_alb_target_group.web.*.arn, 0)}"
@@ -356,8 +357,8 @@ resource "aws_alb_listener" "web" {
 
 resource "aws_alb_listener_rule" "web" {
   listener_arn = "${aws_alb_listener.web.arn}"
-  count    = "${var.webserver["count"]}"
-  priority = "${count.index + 100}"
+  count        = "${var.aws["use_load_balancer"] ? var.webserver["count"] : 0}"
+  priority     = "${count.index + 100}"
 
   action {
     type = "forward"
@@ -382,7 +383,7 @@ resource "aws_route53_record" "webserver" {
 
 resource "aws_route53_record" "web" {
     zone_id = "${var.aws["route53_zone"]}"
-    count = "${var.webserver["count"] ? 1 : 0}"
+    count = "${(var.aws["use_load_balancer"] && var.webserver["count"]) ? 1 : 0}"
     name    = "web"
     type    = "CNAME"
     ttl     = "300"
