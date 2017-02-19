@@ -17,7 +17,7 @@ import boto3
 from collections import defaultdict
 from collections import Counter
 
-from geo import NYC_BOROUGHS, NYCGeoPolygon
+from geo import NYCBorough, NYCGeoPolygon
 from raw2aws import RawReader, fatal, warning, info
 
 NYC_DISTRICTS_JSON = 'nyc_community_districts.geojson'
@@ -50,9 +50,6 @@ def parse_argv():
 
     parser.add_argument('-p', '--procs', type=int,
         default=1, help="number of concurrent processes")
-
-    parser.add_argument('-n', '--n-records', dest='action', action='store_const',
-        const='n_records', default=None, help="show the number of records")
 
     args = parser.parse_args()
     return args
@@ -137,7 +134,7 @@ class RecordReader(io.IOBase):
 
             bytes_range = 'bytes=%d-%d' % \
                 (self.start * self.MAX_RECORD_LENGTH, \
-                 self.end * self.MAX_RECORD_LENGTH - 1)
+                (self.end - 1) * self.MAX_RECORD_LENGTH)
             self.data = obj.get(Range=bytes_range)['Body']
 
         return self
@@ -221,9 +218,11 @@ class NYCTaxiStat:
         pickup_district, dropoff_district = None, None
 
         for district in self.districts:
-            if (pickup_longitude, pickup_latitude) in district:
+            if pickup_district is None and \
+               (pickup_longitude, pickup_latitude) in district:
                 pickup_district = district.index
-            if (dropoff_longitude, dropoff_latitude) in district:
+            if dropoff_district is None and \
+               (dropoff_longitude, dropoff_latitude) in district:
                 dropoff_district = district.index
             if pickup_district and dropoff_district: break
 
@@ -264,7 +263,7 @@ class NYCTaxiStat:
     def report(self):
         width = 50
         report_date = datetime.datetime(self.opts.year, self.opts.month, 1)
-        title = "NYC Taxi Statistics: %s Cab, %s" %\
+        title = " NYC %s Cab, %s " %\
             (self.opts.color.capitalize(), report_date.strftime('%B %Y'))
         print title.center(width, '=')
 
@@ -278,10 +277,10 @@ class NYCTaxiStat:
 
         format_str = "%14s: %16s %16s"
         print format_str % ('Borough', 'Pickups', 'Dropoffs')
-        for index, name in NYC_BOROUGHS.items():
+        for index, name in NYCBorough.BOROUGHS.items():
             print format_str % (name, pickups[index], dropoffs[index])
 
-        print "Pickup Time".center(width, '-')
+        print " Pickup Time ".center(width, '-')
         format_str = "%14s: %33s"
         #print format_str % ('Time', 'Pickups')
         for hour in range(24):
@@ -289,9 +288,8 @@ class NYCTaxiStat:
                 hour_str = '%d:00 ~ %d:59' % (hour, hour)
                 print format_str % (hour_str, self.hour[hour])
 
-        print "Trip Distance (miles)".center(width, '-')
+        print " Trip Distance (miles) ".center(width, '-')
         format_str = "%14s: %33s"
-        #print format_str % ('Miles', 'Trips')
         print format_str % ('0 ~ 1',   self.distance[0])
         print format_str % ('1 ~ 2',   self.distance[1])
         print format_str % ('2 ~ 5',   self.distance[2])
@@ -299,9 +297,8 @@ class NYCTaxiStat:
         print format_str % ('10 ~ 20', self.distance[10])
         print format_str % ('> 20',    self.distance[20])
 
-        print "Trip Time (minutes)".center(width, '-')
+        print " Trip Time (minutes) ".center(width, '-')
         format_str = "%14s: %33s"
-        #print format_str % ('Minutes', 'Trips')
         print format_str % ('0 ~ 5',   self.trip_time[0])
         print format_str % ('5 ~ 10',  self.trip_time[300])
         print format_str % ('10 ~ 15', self.trip_time[600])
@@ -310,9 +307,8 @@ class NYCTaxiStat:
         print format_str % ('45 ~ 60', self.trip_time[2700])
         print format_str % ('> 60',    self.trip_time[3600])
 
-        print "Fare (dollars)".center(width, '-')
+        print " Fare (dollars) ".center(width, '-')
         format_str = "%14s: %33s"
-        #print format_str % ('Dollars', 'Trips')
         print format_str % ('0 ~ 5',    self.fare[0])
         print format_str % ('5 ~ 10',   self.fare[5])
         print format_str % ('10 ~ 25',  self.fare[10])
@@ -320,6 +316,7 @@ class NYCTaxiStat:
         print format_str % ('50 ~ 100', self.fare[50])
         print format_str % ('> 100',    self.fare[100])
 
+        print ''.center(width, '=')
         print "Done, took %.2f seconds using %d processes." %\
             (self.elapsed, self.opts.procs)
 
@@ -327,11 +324,11 @@ class NYCTaxiStat:
         self.elapsed = time.time()
 
         try:
-            with self.reader.open(self.opts.color, self.opts.year, self.opts.month, \
+            with self.reader.open(\
+                self.opts.color, self.opts.year, self.opts.month, \
                 self.opts.src, self.opts.start, self.opts.end, \
                 self.opts.procs, self.proc) as fin:
-                for line in fin.readlines():
-                    self.search(line)
+                for line in fin.readlines(): self.search(line)
         except KeyboardInterrupt as e:
             return
 
