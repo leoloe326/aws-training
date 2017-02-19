@@ -87,7 +87,7 @@
     become: yes
 
   - name: setup sub homepage
-    shell: "echo {{ inventory_hostname }} > /var/www/html/{{ inventory_hostname_short }}/index.html"
+    shell: "echo 'Hello, I am at {{ inventory_hostname }}' > /var/www/html/{{ inventory_hostname_short }}/index.html"
     args:
       creates: "/var/www/html/{{ inventory_hostname_short }}/index.html"
     become: yes
