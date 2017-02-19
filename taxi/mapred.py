@@ -18,7 +18,7 @@ from collections import defaultdict
 from collections import Counter
 
 from geo import NYCBorough, NYCGeoPolygon
-from raw2aws import RawReader, fatal, warning, info
+from raw2aws import MIN_DATE, MAX_DATE, RawReader, fatal, warning, info
 
 NYC_DISTRICTS_JSON = 'nyc_community_districts.geojson'
 NYC_BOROUGHS_JSON = 'nyc_boroughs.geojson'
@@ -52,6 +52,19 @@ def parse_argv():
         default=1, help="number of concurrent processes")
 
     args = parser.parse_args()
+
+    # check arguments
+    if args.color != 'yellow' and args.color != 'green':
+        fatal('unknown color: %s' % args.color)
+
+    data_date = datetime.datetime(args.year, args.month, 1)
+    if not (data_date >= MIN_DATE[args.color] and \
+            data_date <= MAX_DATE[args.color]):
+        fatal('date range must be from %s to %s for %s data' % \
+            (MIN_DATE[args.color].strftime('%Y-%m'),
+             MAX_DATE[args.color].strftime('%Y-%m'),
+             args.color))
+
     return args
 
 class RecordReader(io.IOBase):
@@ -123,7 +136,7 @@ class RecordReader(io.IOBase):
             except botocore.exceptions.ClientError as e:
                 error_code = int(e.response['Error']['Code'])
                 if error_code == 404:
-                    fatal("%s does not exists" % self.opts.dst)
+                    raise OSError("%s does not exists" % self.opts.dst)
 
             # HOWTO: read object by range
             key = '%s-%s-%02d.csv' % (color, year, month)
@@ -131,7 +144,6 @@ class RecordReader(io.IOBase):
 
             self.n_records = obj.content_length / self.MAX_RECORD_LENGTH
             create_range('s3://' + key)
-
             bytes_range = 'bytes=%d-%d' % \
                 (self.start * self.MAX_RECORD_LENGTH, \
                  self.end * self.MAX_RECORD_LENGTH - 1)
@@ -169,11 +181,15 @@ class NYCTaxiStat:
         self.elapsed = 0
 
         # Load Boroughs and Community Districts information
-        # self.boroughs = NYCGeoPolygon.load(self.get_fullpath('nyc_boroughs.geojson'))
+        def shift_borough(district):
+            if district.region == 2: return 5
+            elif district.region == 5: return 6
+            return district.region
+
         self.districts = NYCGeoPolygon.load(os.path.join(self.cwd, NYC_DISTRICTS_JSON))
 
-        self.total = 0    # number of total records
-        self.invalid = 0  # number of invalid records
+        self.total = 0              # number of total records
+        self.invalid = 0            # number of invalid records
         self.pickups = Counter()    # district -> # of pickups
         self.dropoffs = Counter()   # district -> # of dropoffs
         self.hour = Counter()       # pickup hour distriibution
@@ -204,9 +220,10 @@ class NYCTaxiStat:
 
         pickup_datetime = int(pickup_datetime)
         dropoff_datetime = int(dropoff_datetime)
-        trip_time = dropoff_datetime - pickup_datetime # calculate trip time
-        pickup_datetime = delta_time(pickup_datetime)
-        dropoff_datetime = delta_time(dropoff_datetime)
+        trip_time = dropoff_datetime - pickup_datetime
+        pickup_hour = delta_time(pickup_datetime).hour
+        # We don't need dropoff time
+        # dropoff_datetime = delta_time(dropoff_datetime)
 
         pickup_longitude = float(pickup_longitude)
         pickup_latitude = float(pickup_latitude)
@@ -217,6 +234,7 @@ class NYCTaxiStat:
 
         pickup_district, dropoff_district = None, None
 
+        # Note: district in particular order, see geo.py
         for district in self.districts:
             if pickup_district is None and \
                (pickup_longitude, pickup_latitude) in district:
@@ -236,7 +254,7 @@ class NYCTaxiStat:
 
         if pickup_district:  self.pickups[pickup_district] += 1
         if dropoff_district: self.dropoffs[dropoff_district] += 1
-        self.hour[pickup_datetime.hour] += 1
+        self.hour[pickup_hour] += 1
 
         if   trip_distance >= 20: self.distance[20] += 1
         elif trip_distance >= 10: self.distance[10] += 1
@@ -271,7 +289,7 @@ class NYCTaxiStat:
         pickups = Counter()
         dropoffs = Counter()
         for district in self.districts:
-            borough = district.index / 10000
+            borough = district.region
             pickups[borough] += self.pickups[district.index]
             dropoffs[borough] += self.dropoffs[district.index]
 

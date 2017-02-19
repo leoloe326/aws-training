@@ -80,5 +80,13 @@ class NYCGeoPolygon:
                     polygon = {'type': 'Polygon', 'coordinates': coords}
                     polygons.append(NYCGeoPolygon(index + i + 1, name, polygon))
 
-        polygons.sort(key=lambda x: x.index)
+        # Important: sort districts by the propabilities of high trip count
+        def shift_borough(district):
+            if district.region == 2: return 4
+            if district.region == 4: return 2
+            return district.region
+
+        polygons.sort(key=shift_borough)
+        # polygons.sort(key=lambda x: x.index)
+
         return polygons
