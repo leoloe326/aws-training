@@ -134,7 +134,7 @@ class RecordReader(io.IOBase):
 
             bytes_range = 'bytes=%d-%d' % \
                 (self.start * self.MAX_RECORD_LENGTH, \
-                (self.end - 1) * self.MAX_RECORD_LENGTH)
+                 self.end * self.MAX_RECORD_LENGTH - 1)
             self.data = obj.get(Range=bytes_range)['Body']
 
         return self
