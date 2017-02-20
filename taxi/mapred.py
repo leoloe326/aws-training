@@ -8,8 +8,10 @@ from __future__ import print_function
 import argparse
 import copy
 import datetime
+import decimal
 import fileinput
 import io
+import json
 import logging
 import multiprocessing
 import os.path
@@ -20,6 +22,7 @@ import boto3
 import botocore
 
 from collections import Counter
+from boto3.dynamodb.conditions import Key, Attr
 
 from geo import NYCBorough, NYCGeoPolygon
 from raw2aws import MIN_DATE, MAX_DATE, RawReader, fatal, warning, info
@@ -61,6 +64,9 @@ def parse_argv():
 
     parser.add_argument('--sleep', type=int,
         default=10, help="worker sleep time if no task")
+
+    parser.add_argument('-d', '--debug', action='store_true',
+        default=False, help="debug mode")
 
     parser.add_argument('-v', '--verbose', type=int,
         default=logging.NOTSET, help='verbose level')
@@ -185,25 +191,136 @@ class RecordReader(io.IOBase):
     def close(self):
         self.data.close()
 
-class NYCTaxiStat:
-    START_DATE = RawReader.START_DATE
-
+class StatDB:
     def __init__(self, opts):
+        self.opts = opts
+        self.ddb = boto3.resource('dynamodb',
+            region_name='us-west-2', endpoint_url="http://localhost:8000")
+        self.table = self.ddb.Table('taxi')
+        try:
+            assert self.table.table_status == 'ACTIVE'
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                warning("table %s does not exist" % self.table.table_name)
+            if opts.debug: self.create_table()
+        
+        # if self.opts.debug: self.table.delete(); self.create_table()
+
+    def create_table(self):
+        self.table = self.ddb.create_table(
+            TableName='taxi',
+            KeySchema=[
+                {
+                    'AttributeName': 'color',
+                    'KeyType': 'HASH'   # partition key
+                },
+                {
+                    'AttributeName': 'date',
+                    'KeyType': 'RANGE'  # sort key
+                }
+            ],
+            AttributeDefinitions=[
+                {
+                    'AttributeName': 'color',
+                    'AttributeType': 'S'
+                },
+                {
+                    'AttributeName': 'date',
+                    'AttributeType': 'N'
+                },
+
+            ],
+            ProvisionedThroughput={
+                'ReadCapacityUnits': 10,
+                'WriteCapacityUnits': 10
+            }
+        )
+
+    def append(self, stat):
+        def add_values(counter, prefix):
+            for key, count in counter.items():
+                values[':%s%s' % (prefix, key)] = count
+
+        values = {}
+
+        # use one letter to save bytes, thus write/read units
+        # must not overlap with 'color' and 'date'
+        values[':l'] = stat.total
+        values[':i'] = stat.invalid
+        add_values(stat.pickups,   'p')
+        add_values(stat.dropoffs,  'r')
+        add_values(stat.hour,      'h')
+        add_values(stat.trip_time, 't')
+        add_values(stat.distance,  's')
+        add_values(stat.fare,      'f')
+        add_values(stat.borough_pickups,  'k')
+        add_values(stat.borough_dropoffs, 'o')
+
+        # HOWTO: contrurct update expression
+        expr = ','.join([k[1:] + k for k in values.keys()])
+
+        self.table.update_item(
+            Key={'color': stat.color, 'date': stat.year * 100 + stat.month},
+            UpdateExpression='add ' + expr,
+            ExpressionAttributeValues=values
+        )
+
+    def get(self, color, year, month):
+        def add_stat(counter, prefix):
+            for key, val in values.items():
+                if key.startswith(prefix): counter[int(key[1:])] = val
+
+        try:
+            response = self.table.get_item(
+                Key={
+                    'color': color,
+                    'date': year * 100 + month
+                }
+            )
+        except botocore.exceptions.ClientError as e:
+            print(e.response['Error']['Message'])
+            return None
+
+        values = response['Item']
+        stat = TaxiStat(color, year, month)
+
+        stat.total = values['l']
+        stat.invalid = values['i']
+        add_stat(stat.pickups,   'p')
+        add_stat(stat.dropoffs,  'r')
+        add_stat(stat.hour,      'h')
+        add_stat(stat.trip_time, 't')
+        add_stat(stat.distance,  's')
+        add_stat(stat.fare,      'f')
+        add_stat(stat.borough_pickups,  'k')
+        add_stat(stat.borough_dropoffs, 'o')
+
+        return stat
+
+class TaxiStat(object):
+    def __init__(self, color=None, year=0, month=0):
+        self.color = color
+        self.year = year
+        self.month = month
+        self.total = 0                      # number of total records
+        self.invalid = 0                    # number of invalid records
+        self.pickups = Counter()            # district -> # of pickups
+        self.dropoffs = Counter()           # district -> # of dropoffs
+        self.hour = Counter()               # pickup hour distriibution
+        self.trip_time = Counter()          # trip time distribution
+        self.distance = Counter()           # distance distribution
+        self.fare = Counter()               # fare distribution
+        self.borough_pickups  = Counter()   # borough -> # of pickups
+        self.borough_dropoffs = Counter()   # borough -> # of dropoffs
+
+class NYCTaxiStat(TaxiStat):
+    START_DATE = RawReader.START_DATE
+    def __init__(self, opts):
+        super(NYCTaxiStat, self).__init__(opts.color, opts.year, opts.month)
         self.opts = opts
         self.reader = RecordReader()
         self.elapsed = 0
-
-        # Load Boroughs and Community Districts information
         self.districts = NYCGeoPolygon.load_districts()
-
-        self.total = 0              # number of total records
-        self.invalid = 0            # number of invalid records
-        self.pickups = Counter()    # district -> # of pickups
-        self.dropoffs = Counter()   # district -> # of dropoffs
-        self.hour = Counter()       # pickup hour distriibution
-        self.trip_time = Counter()  # trip time distribution
-        self.distance = Counter()   # distance distribution
-        self.fare = Counter()       # fare distribution
 
     def __add__(self, x):
         self.total += x.total
@@ -293,18 +410,12 @@ class NYCTaxiStat:
             (self.opts.color.capitalize(), report_date.strftime('%B %Y'))
         print(title.center(width, '='))
 
-        # Aggregate Districts to Boroughs
-        pickups = Counter()
-        dropoffs = Counter()
-        for district in self.districts:
-            borough = district.region
-            pickups[borough] += self.pickups[district.index]
-            dropoffs[borough] += self.dropoffs[district.index]
-
         format_str = "%14s: %16s %16s"
         print(format_str % ('Borough', 'Pickups', 'Dropoffs'))
         for index, name in NYCBorough.BOROUGHS.items():
-            print(format_str % (name, pickups[index], dropoffs[index]))
+            print(format_str % (name,
+                                self.borough_pickups[index],
+                                self.borough_dropoffs[index]))
 
         print(" Pickup Time ".center(width, '-'))
         format_str = "%14s: %33s"
@@ -357,6 +468,12 @@ class NYCTaxiStat:
         except KeyboardInterrupt as e:
             return
 
+        # aggregate boroughs' pickups and dropoffs
+        for index, count in self.pickups.items():
+            self.borough_pickups[index/10000] += count
+        for index, count in self.dropoffs.items():
+            self.borough_dropoffs[index/10000] += count
+
         self.elapsed = time.time() - self.elapsed
 
 def start_process(opts):
@@ -365,6 +482,8 @@ def start_process(opts):
     return p
 
 def start_multiprocess(opts):
+    db = StatDB(opts)
+
     tasks = []
     for i in range(opts.nprocs):
         opts_copy = copy.deepcopy(opts)
@@ -379,13 +498,17 @@ def start_multiprocess(opts):
 
     master = results[0]
     for res in results[1:]: master += res
+    db.append(master)
+
     if opts.report: master.report()
-    return 0
+
+    return True
 
 def start_worker(opts):
     task_manager = TaskManager()
     logger = logging.getLogger(NYCTaxiStat.__name__)
     logger.setLevel(opts.verbose)
+
     opts.nprocs = multiprocessing.cpu_count()
 
     while True:
@@ -397,7 +520,7 @@ def start_worker(opts):
             opts.month = task.month
             opts.start = task.start
             opts.end = task.end
-            if start_multiprocess(opts) == 0:
+            if start_multiprocess(opts):
                 logger.info("task %r succeeded" % task)
                 task_manager.delete_task(task)
         else:
