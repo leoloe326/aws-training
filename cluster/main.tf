@@ -162,7 +162,7 @@ resource "aws_spot_instance_request" "mapper" {
     instance_type               = "${var.mapper["instance_type"]}"
     count                       = "${var.aws["use_spot_instances"] ? var.mapper["count"] : 0}"
     spot_price                  = "${var.mapper["spot_price"]}"
-	wait_for_fulfillment        = true
+    wait_for_fulfillment        = true
 
     ebs_block_device {
         device_name = "${var.mapper["ebs_device_name"]}"
@@ -266,7 +266,6 @@ resource "aws_instance" "reducer" {
 
     instance_type               = "${var.reducer["instance_type"]}"
     count                       = "${var.reducer["count"]}"
-	wait_for_fulfillment        = true
 
     tags {
         Environment = "${var.tags["environment"]}"
@@ -288,6 +287,7 @@ resource "aws_spot_instance_request" "reducer" {
     instance_type               = "${var.reducer["instance_type"]}"
     count                       = "${var.aws["use_spot_instances"] ? var.reducer["count"] : 0}"
     spot_price                  = "${var.reducer["spot_price"]}"
+    wait_for_fulfillment        = true
 
     tags {
         Environment = "${var.tags["environment"]}"
