@@ -40,3 +40,12 @@ else
     unzip terraform.zip -d ${PREFIX}/bin
     rm -rf terraform.zip
 fi
+
+# Install DynamoDB Local
+# http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html
+DDB_URL="https://s3-us-west-2.amazonaws.com/dynamodb-local/dynamodb_local_latest.tar.gz"
+DDB_PATH=$PREFIX/dynamodb
+if [ ! -d "$DDB_PATH" ]; then
+	mkdir -p $DDB_PATH
+	curl $DDB_URL | tar zxv -C $DDB_PATH
+fi
