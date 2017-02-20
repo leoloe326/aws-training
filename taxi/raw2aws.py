@@ -5,6 +5,8 @@
 
 # Raw Taxi Trip to AWS Storage: S3, Athena
 
+from __future__ import print_function
+
 import argparse
 import calendar
 import copy
@@ -251,7 +253,7 @@ class RawReader(io.IOBase):
             # obj = s3.Object('nyc-tlc','trip data/' + filename)
             # self.data = obj.get()["Body"].read()
             # for line in self.data.split('\n'):
-            #    print line
+            #    print(line)
             self.data = urllib2.urlopen(filename)
         elif source.startswith('file://'):
             directory = os.path.realpath(source[7:])

@@ -5,6 +5,8 @@
 
 # Geo Location Processing
 
+from __future__ import print_function
+
 import json
 import os.path
 import sys
@@ -81,7 +83,6 @@ class NYCGeoPolygon:
                 geometry = feature['geometry']
                 if geometry['type'].lower() == 'polygon':
                     raise NotImplementedError
-                # print '%s has %d patches' % (name, len(geometry['coordinates']))
                 for i, coords in enumerate(geometry['coordinates']):
                     polygon = {'type': 'Polygon', 'coordinates': coords}
                     polygons.append(NYCGeoPolygon(index + i + 1, name, polygon))

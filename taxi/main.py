@@ -3,6 +3,8 @@
 # Copyright 2017, Nan Dun <nan.dun@acm.org>
 # All rights reserved.
 
+from __future__ import print_function
+
 import os.path
 
 import numpy
@@ -177,7 +179,7 @@ class InteractivePlot:
         curdoc().title = "NYC Taxi Data Explorer"
 
 if __name__ == "__main__":
-    print "usage: bokeh serve --show %s" % os.path.dirname(__file__)
+    print("usage: bokeh serve --show %s" % os.path.dirname(__file__))
 else:
     p = InteractivePlot()
     p.plot()
