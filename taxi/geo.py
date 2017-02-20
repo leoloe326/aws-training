@@ -5,9 +5,12 @@
 
 # Geo Location Processing
 
-import sys
 import json
+import os.path
+import sys
+
 import shapely.geometry
+
 from collections import OrderedDict
 
 class NYCBorough:
@@ -26,7 +29,7 @@ class NYCBorough:
         4: shapely.geometry.Point(-73.796699, 40.725518), # St. John's Univ.
         5: shapely.geometry.Point(-74.148280, 40.605389), # CUNY College
     })
-    
+
     @classmethod
     def in_which(cls, longitude, latitude):
         min_distance = sys.maxint
@@ -39,6 +42,9 @@ class NYCBorough:
         return min_borough
 
 class NYCGeoPolygon:
+    NYC_DISTRICTS_JSON = 'nyc_community_districts.geojson'
+    NYC_BOROUGHS_JSON  = 'nyc_boroughs.geojson'
+
     def __init__(self, index, name, polygon):
         self.index = index
         self.name = name
@@ -90,3 +96,13 @@ class NYCGeoPolygon:
         # polygons.sort(key=lambda x: x.index)
 
         return polygons
+
+    @classmethod
+    def load_districts(cls):
+        cwd = os.path.dirname(__file__)
+        return cls.load(os.path.join(cwd, cls.NYC_DISTRICTS_JSON))
+
+    @classmethod
+    def load_districts(cls):
+        cwd = os.path.dirname(__file__)
+        return cls.load(os.path.join(cwd, cls.NYC_BOROUGHS_JSON))

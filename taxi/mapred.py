@@ -23,9 +23,6 @@ from geo import NYCBorough, NYCGeoPolygon
 from raw2aws import MIN_DATE, MAX_DATE, RawReader, fatal, warning, info
 from tasks import TaskManager
 
-NYC_DISTRICTS_JSON = 'nyc_community_districts.geojson'
-NYC_BOROUGHS_JSON  = 'nyc_boroughs.geojson'
-
 def parse_argv():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -191,17 +188,11 @@ class NYCTaxiStat:
 
     def __init__(self, opts):
         self.opts = opts
-        self.cwd = os.path.dirname(__file__)
         self.reader = RecordReader()
         self.elapsed = 0
 
         # Load Boroughs and Community Districts information
-        def shift_borough(district):
-            if district.region == 2: return 5
-            elif district.region == 5: return 6
-            return district.region
-
-        self.districts = NYCGeoPolygon.load(os.path.join(self.cwd, NYC_DISTRICTS_JSON))
+        self.districts = NYCGeoPolygon.load_districts()
 
         self.total = 0              # number of total records
         self.invalid = 0            # number of invalid records
