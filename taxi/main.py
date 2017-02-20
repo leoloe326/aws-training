@@ -7,12 +7,13 @@ from __future__ import print_function
 
 import argparse
 import os.path
+import time
 
-from bokeh.charts import Area, Line, Histogram
+from bokeh.charts import Area, Line, Histogram, Bar
 from bokeh.plotting import figure
 #from bokeh.palettes import Viridis6 as palette
 from bokeh.palettes import GnBu6 as palette
-from bokeh.layouts import column, layout, widgetbox
+from bokeh.layouts import row, column, layout, widgetbox
 from bokeh.models import ColumnDataSource, HoverTool, Div, LogColorMapper
 from bokeh.models.widgets import Dropdown, RangeSlider, RadioButtonGroup, Slider, Toggle
 from bokeh.io import curdoc
@@ -36,6 +37,7 @@ class InteractivePlot:
     def __init__(self, opts):
         self.opts = opts
         self.db = StatDB(opts)
+        self.last_refresh = time.time()
 
     def in_borough(self, borough, district):
         if borough == 'All Boroughs': return True
@@ -47,6 +49,8 @@ class InteractivePlot:
 
     def plot(self):
         def update():
+            # prevent DynamoDB from polling too often
+            if time.time() - self.last_refresh < 2: time.sleep(2)
             data = self.db.get('green', 2016, 1)
 
             pickup_or_dropoff.label = 'Pickups' if pickup_or_dropoff.active else 'Dropoffs'
@@ -81,16 +85,24 @@ class InteractivePlot:
                 pickups_map.title.text = "%s, %d - %d, %s" % \
                     (pickup_or_dropoff.label, min_year, max_year, borough.value)
 
-            trip_distance.title.text = "Average Trip Distance: 10 mile"
-            trip_fare.title.text = "Average Trip Fare: $20"
+            trip_hour_data = {'hour': [data.hour[i] + 1000 for i in range(24)]}
+            trip_hour = Bar(data=trip_hour_data,
+                plot_width=620, plot_height=350, values='hour',
+                xlabel='miles', ylabel='count', title="Hour",
+                color='firebrick', legend=None)
+
+            borough.label = borough.value
+            trip_distance.title.text = "Distance: 10 mile"
+            trip_fare.title.text = "Fare: $20"
+
+            self.last_refresh = time.time()
 
         cwd = os.path.dirname(__file__)
-        desc = Div(text=open(os.path.join(cwd, "description.html")).read(), width=800)
+        desc = Div(text=open(
+            os.path.join(cwd, "description.html")).read(), width=1000)
 
-        #
         # Create input controls
-        #
-        taxi_type = RadioButtonGroup(labels=["Yellow", "Green", "FHV", "  All  "], active=0)
+        taxi_type = RadioButtonGroup(labels=["Yellow", "Green"], active=0)
         taxi_type.on_change('active', lambda attr, old, new: update())
 
         pickup_or_dropoff = Toggle(label="Pickup", button_type="primary")
@@ -101,7 +113,7 @@ class InteractivePlot:
             ('Manhattan', 'Manhattan'), ('Bronx', 'Bronx'), ('Brooklyn', 'Brooklyn'),
             ('Queens', 'Queens'), ('Staten Island', 'Staten Island')]
         # https://github.com/bokeh/bokeh/issues/4915
-        borough = Dropdown(label="NYC Boroughs", button_type="warning",
+        borough = Dropdown(label="Boroughs", button_type="warning",
             menu=borough_menu, value='All Boroughs')
         borough.on_change('value', lambda attr, old, new: update())
 
@@ -146,7 +158,7 @@ class InteractivePlot:
 
         TOOLS = "pan,wheel_zoom,box_zoom,reset,hover,save"
 
-        pickups_map = figure(
+        pickups_map = figure(webgl=True,
             plot_height=700, plot_width=700,
             tools=TOOLS,
             x_axis_location=None, y_axis_location=None
@@ -165,11 +177,19 @@ class InteractivePlot:
             ("Long, Lat", "($x, $y)"),
         ]
 
-        trip_distance = Histogram(df, plot_width=570, plot_height=350,
-            values='mpg', xlabel='miles', ylabel='count', title="Average Trip Distance",
+        trip_hour_data = {'hour': [data.hour[i] for i in range(24)]}
+        trip_hour = Bar(data=trip_hour_data,
+            plot_width=620, plot_height=350, values='hour',
+            xlabel='miles', ylabel='count', title="Hour",
+            color='firebrick', legend=None)
+        trip_hour.xaxis.major_tick_line_color = None
+        trip_hour.xaxis.minor_tick_line_color = None
+
+        trip_distance = Histogram(df, plot_width=310, plot_height=350,
+            values='mpg', xlabel='miles', ylabel='count', title="Distance",
             color='firebrick')
 
-        trip_fare = figure(plot_width=570, plot_height=350)
+        trip_fare = figure(plot_width=310, plot_height=350)
         trip_fare.circle([1, 2, 3, 4, 5], [6, 7, 2, 4, 5], size=15, line_color="navy",
                          fill_color="orange", fill_alpha=0.5)
 
@@ -182,8 +202,9 @@ class InteractivePlot:
         resource_usage.xgrid.visible = False
         resource_usage.ygrid.visible = False
 
-        right_column = column([trip_distance, trip_fare])
-        inputs = widgetbox(*controls, width=226, sizing_mode="fixed")
+        rightdown_row = row([trip_distance, trip_fare])
+        right_column = column([trip_hour, rightdown_row])
+        inputs = widgetbox(*controls, width=140, sizing_mode="fixed")
         l = layout([
             [desc],
             [inputs, pickups_map, right_column],
