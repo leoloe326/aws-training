@@ -104,6 +104,6 @@ class NYCGeoPolygon:
         return cls.load(os.path.join(cwd, cls.NYC_DISTRICTS_JSON))
 
     @classmethod
-    def load_districts(cls):
+    def load_boroughs(cls):
         cwd = os.path.dirname(__file__)
         return cls.load(os.path.join(cwd, cls.NYC_BOROUGHS_JSON))
