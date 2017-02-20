@@ -203,7 +203,7 @@ class StatDB:
             if e.response['Error']['Code'] == 'ResourceNotFoundException':
                 warning("table %s does not exist" % self.table.table_name)
             if opts.debug: self.create_table()
-        
+
         # if self.opts.debug: self.table.delete(); self.create_table()
 
     def create_table(self):
@@ -268,7 +268,8 @@ class StatDB:
     def get(self, color, year, month):
         def add_stat(counter, prefix):
             for key, val in values.items():
-                if key.startswith(prefix): counter[int(key[1:])] = val
+                if key.startswith(prefix):
+                    counter[int(key[1:])] = int(val)
 
         try:
             response = self.table.get_item(
