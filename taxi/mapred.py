@@ -4,24 +4,27 @@
 # All rights reserved.
 
 import argparse
+import copy
 import datetime
-import sys
-import os.path
-import time
-import io
 import fileinput
+import io
+import logging
 import multiprocessing
+import os.path
+import sys
+import time
 
 import boto3
+import botocore
 
-from collections import defaultdict
 from collections import Counter
 
 from geo import NYCBorough, NYCGeoPolygon
 from raw2aws import MIN_DATE, MAX_DATE, RawReader, fatal, warning, info
+from tasks import TaskManager
 
 NYC_DISTRICTS_JSON = 'nyc_community_districts.geojson'
-NYC_BOROUGHS_JSON = 'nyc_boroughs.geojson'
+NYC_BOROUGHS_JSON  = 'nyc_boroughs.geojson'
 
 def parse_argv():
     parser = argparse.ArgumentParser(
@@ -48,8 +51,20 @@ def parse_argv():
     parser.add_argument('-r', '--report', action='store_true',
         default=False, help="report results")
 
-    parser.add_argument('-p', '--procs', type=int,
+    parser.add_argument('-p', '--procs', type=int, dest='nprocs',
         default=1, help="number of concurrent processes")
+
+    parser.add_argument('-i', '--proc-idx', type=int,
+        dest='proc_idx', default=0, help=argparse.SUPPRESS)
+
+    parser.add_argument('-w', '--worker', action='store_true',
+        default=False, help="worker mode")
+
+    parser.add_argument('--sleep', type=int,
+        default=10, help="worker sleep time if no task")
+
+    parser.add_argument('-v', '--verbose', type=int,
+        default=logging.NOTSET, help='verbose level')
 
     args = parser.parse_args()
 
@@ -64,6 +79,8 @@ def parse_argv():
             (MIN_DATE[args.color].strftime('%Y-%m'),
              MAX_DATE[args.color].strftime('%Y-%m'),
              args.color))
+
+    logging.basicConfig()
 
     return args
 
@@ -92,9 +109,8 @@ class RecordReader(io.IOBase):
                     (self.start, self.end, path, self.n_records))
 
             self.end = min(self.n_records, end)
-            r = range(self.start, self.end+1, (self.end - self.start) / nParts)
-            self.start, self.end = r[nth], r[nth+1]
-            info("proc %02d read: %s [%d, %d]" % (nth, path, self.start, self.end))
+            self.start, self.end = TaskManager.cut(self.start, self.end, nParts, nth)
+            info("proc %02d read: %s [%d, %d)" % (nth, path, self.start, self.end))
 
         self.start = start
         self.end = end
@@ -173,11 +189,10 @@ class RecordReader(io.IOBase):
 class NYCTaxiStat:
     START_DATE = RawReader.START_DATE
 
-    def __init__(self, opts, proc=0):
+    def __init__(self, opts):
         self.opts = opts
         self.cwd = os.path.dirname(__file__)
         self.reader = RecordReader()
-        self.proc = proc
         self.elapsed = 0
 
         # Load Boroughs and Community Districts information
@@ -336,7 +351,7 @@ class NYCTaxiStat:
 
         print ''.center(width, '=')
         print "Done, took %.2f seconds using %d processes." %\
-            (self.elapsed, self.opts.procs)
+            (self.elapsed, self.opts.nprocs)
 
     def run(self):
         self.elapsed = time.time()
@@ -345,33 +360,60 @@ class NYCTaxiStat:
             with self.reader.open(\
                 self.opts.color, self.opts.year, self.opts.month, \
                 self.opts.src, self.opts.start, self.opts.end, \
-                self.opts.procs, self.proc) as fin:
+                self.opts.nprocs, self.opts.proc_idx) as fin:
                 for line in fin.readlines(): self.search(line)
         except KeyboardInterrupt as e:
             return
 
         self.elapsed = time.time() - self.elapsed
 
-def start_process(args):
-    opts, index = args
-    p = NYCTaxiStat(opts, index)
+def start_process(opts):
+    p = NYCTaxiStat(opts)
     p.run()
     return p
 
-if __name__ == '__main__':
-    opts = parse_argv()
+def start_multiprocess(opts):
     tasks = []
-
-    # map
-    for i in range(opts.procs): tasks.append((opts, i))
+    for i in range(opts.nprocs):
+        opts_copy = copy.deepcopy(opts)
+        opts_copy.proc_idx = i
+        tasks.append(opts_copy)
 
     try:
-        procs = multiprocessing.Pool(processes=opts.procs)
+        procs = multiprocessing.Pool(processes=opts.nprocs)
         results = procs.map(start_process, tasks)
     except Exception as e:
         fatal(e)
 
-    # intermediate reduce
     master = results[0]
     for res in results[1:]: master += res
     if opts.report: master.report()
+    return 0
+
+def start_worker(opts):
+    task_manager = TaskManager()
+    logger = logging.getLogger(NYCTaxiStat.__name__)
+    logger.setLevel(opts.verbose)
+
+    while True:
+        task = task_manager.retrieve_task()
+        if task:
+            logger.info('get task %r' % task)
+            opts.color = task.color
+            opts.year = task.year
+            opts.month = task.month
+            opts.start = task.start
+            opts.end = task.end
+            if start_multiprocess(opts) == 0:
+                logger.info("task %r succeeded" % task)
+                task_manager.delete_task(task)
+        else:
+            logger.info("no task, wait for 10 seconds...")
+            time.sleep(10)
+
+def main(opts):
+    if opts.worker: start_worker(opts)
+    else: start_multiprocess(opts)
+
+if __name__ == '__main__':
+    main(parse_argv())
