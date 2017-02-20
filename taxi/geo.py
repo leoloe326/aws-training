@@ -17,6 +17,7 @@ from collections import OrderedDict
 
 class NYCBorough:
     BOROUGHS = OrderedDict({
+        0: 'All Boroughs',
         1: 'Manhattan',
         2: 'Bronx',
         3: 'Brooklyn',
