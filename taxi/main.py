@@ -5,11 +5,8 @@
 
 from __future__ import print_function
 
+import argparse
 import os.path
-
-import numpy
-import pandas.io.sql as psql
-import sqlite3
 
 from bokeh.charts import Area, Line, Histogram
 from bokeh.plotting import figure
@@ -22,36 +19,51 @@ from bokeh.io import curdoc
 from bokeh.sampledata.autompg import autompg as df
 
 from geo import NYCGeoPolygon
+from mapred import StatDB
+
+def parse_argv():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    parser.add_argument('-d', '--debug', action='store_true',
+        default=False, help="debug mode")
+
+    args = parser.parse_args()
+
+    return args
 
 class InteractivePlot:
-    def __init__(self):
-        self.cwd = os.path.dirname(__file__)
-
-    def get_fullpath(self, filename):
-        return os.path.join(self.cwd, filename)
+    def __init__(self, opts):
+        self.opts = opts
+        self.db = StatDB(opts)
 
     def in_borough(self, borough, district):
         if borough == 'All Boroughs': return True
 
         borough_map = {'Manhattan' : 1, 'Bronx' : 2, 'Brooklyn' : 3,
                        'Queens' : 4, 'Staten Island' : 5}
-        if district.index / 10000 == borough_map[borough]: return True
+        if district.region == borough_map[borough]: return True
         return False
 
     def plot(self):
         def update():
-            pickup_or_dropoff.label = 'Pickups' if pickup_or_dropoff.active else 'Dropoffs'
+            data = self.db.get('green', 2016, 1)
 
+            pickup_or_dropoff.label = 'Pickups' if pickup_or_dropoff.active else 'Dropoffs'
             xs = []
             ys = []
             names = []
             rates = []
-            for i, district in enumerate(districts):
+            for district in districts:
                 x, y = district.xy()
                 xs.append(x)
                 ys.append(y)
                 names.append(district.name)
-                if self.in_borough(borough.value, district): rates.append(i)
+                if self.in_borough(borough.value, district):
+                    if pickup_or_dropoff.label == 'Pickups':
+                        rates.append(data.pickups[district.index])
+                    else:
+                        rates.append(data.dropoffs[district.index])
                 else: rates.append(0)
 
             source.data=dict(
@@ -72,7 +84,8 @@ class InteractivePlot:
             trip_distance.title.text = "Average Trip Distance: 10 mile"
             trip_fare.title.text = "Average Trip Fare: $20"
 
-        desc = Div(text=open(self.get_fullpath("description.html")).read(), width=800)
+        cwd = os.path.dirname(__file__)
+        desc = Div(text=open(os.path.join(cwd, "description.html")).read(), width=800)
 
         #
         # Create input controls
@@ -108,17 +121,21 @@ class InteractivePlot:
         color_mapper = LogColorMapper(palette=palette)
 
         # Pickup/Dropoff Map
-        districts = NYCGeoPolygon.load(self.get_fullpath('nyc_community_districts.geojson'))
+        data = self.db.get('green', 2016, 1)
+        districts = NYCGeoPolygon.load_districts()
         xs = []
         ys = []
         names = []
         rates = []
-        for i, district in enumerate(districts):
+        for district in districts:
             x, y = district.xy()
             xs.append(x)
             ys.append(y)
             names.append(district.name)
-            rates.append(i)
+            if pickup_or_dropoff.label == "Pickup":
+                rates.append(data.pickups[district.index])
+            else:
+                rates.append(data.dropoffs[district.index])
 
         source = ColumnDataSource(data=dict(
             x=xs,
@@ -179,7 +196,7 @@ class InteractivePlot:
         curdoc().title = "NYC Taxi Data Explorer"
 
 if __name__ == "__main__":
-    print("usage: bokeh serve --show %s" % os.path.dirname(__file__))
+    print("usage: bokeh serve --show %s --args [ARGS]" % os.path.dirname(__file__))
 else:
-    p = InteractivePlot()
+    p = InteractivePlot(parse_argv())
     p.plot()
