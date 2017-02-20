@@ -5,7 +5,7 @@
 PREFIX=${PREFIX:-${HOME}/local}
 
 PYTHON_PACKAGES=${PYTHON_PACKAGES:-"awscli aws-shell boto boto3 bokeh paramiko \
-shapely bytebuffer jmespath-terminal ansible"}
+shapely bytebuffer jmespath-terminal ansible flexx"}
 
 PACKER_VERSION=${PACKER_VERSION:-0.12.2}
 TERRAFORM_VERSION=${TERRAFORM_VERSION:-0.8.5}
