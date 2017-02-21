@@ -114,7 +114,7 @@ class Benchmark:
                         {
                             'DeviceName': '/dev/xvda',
                             'Ebs': {
-                                'VolumeSize': 8,
+                                'VolumeSize': 16,
                                 'DeleteOnTermination': True,
                                 'VolumeType': 'gp2',
                             },
