@@ -59,3 +59,13 @@ else
 	curl ${ECSCLI_URL} -o ${PREFIX}/bin/ecs-cli
 	chmod +x ${PREFIX}/bin/ecs-cli
 fi
+
+# Install Docker
+DOCKER_URL="https://download.docker.com/mac/stable/Docker.dmg"
+DOCKER_BIN=$(command -v docker)
+if [ ! -z "${DOCKER_BIN}" ]; then
+	echo "$(docker -v) already installed at ${DOCKER_BIN}, skip..."
+else
+	curl ${DOCKER_URL} -o Docker.dmg
+	open Docker.dmg
+fi
