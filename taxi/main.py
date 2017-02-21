@@ -6,12 +6,10 @@
 from __future__ import print_function
 
 import argparse
-import math
 import os.path
 import random
 import time
 
-from bokeh.charts import Area, Line, Histogram, Bar
 from bokeh.plotting import figure
 #from bokeh.palettes import Viridis6 as palette
 from bokeh.palettes import GnBu6 as palette
@@ -20,7 +18,6 @@ from bokeh.models import ColumnDataSource, HoverTool, Div, LogColorMapper, Fixed
 from bokeh.models.widgets import Dropdown, RangeSlider, RadioButtonGroup, Slider, Toggle
 from bokeh.models.renderers import GlyphRenderer
 from bokeh.io import curdoc
-from bokeh.sampledata.autompg import autompg as df
 
 from geo import NYCBorough,  NYCGeoPolygon
 from mapred import StatDB
@@ -68,9 +65,9 @@ class InteractivePlot:
 
     def query(self, color, year, month):
         # prevent polling too often to save cost
-        if color == self.last_query['color'] and \
-           year == self.last_query['year'] and \
-           month == self.last_query['month']: return
+        #if color == self.last_query['color'] and \
+        #   year == self.last_query['year'] and \
+        #   month == self.last_query['month']: return
         if time.time() - self.last_query['timestamp'] < 2: time.sleep(2)
 
         self.data = self.db.get(color, year, month)
@@ -139,15 +136,12 @@ class InteractivePlot:
         )
 
     def trip_hour_init(self, width=620, height=350, webgl=True):
-        self.trip_hour = figure(webgl=webgl,
-            toolbar_location=None,
+        self.trip_hour = figure(webgl=webgl, toolbar_location=None,
             width=width, height=height, title='Hour')
         self.trip_hour_source = ColumnDataSource(data=dict(
-            x=[i + 0.5 for i in range(24)],
-            top=[self.data.hour[i] for i in range(24)]
-        ))
-        vbar = self.trip_hour.vbar(width=0.6, bottom=0, x='x', top='top',
-            source=self.trip_hour_source, fill_alpha=0.7,
+            x=range(24), hour=self.data.get_hour()))
+        vbar = self.trip_hour.vbar(width=0.6, bottom=0, x='x', top='hour',
+                source=self.trip_hour_source, fill_alpha=0.7,
             line_color="white", color='#D35400')
         self.trip_hour.y_range.start = 0
         self.trip_hour.xaxis.major_tick_line_color = None
@@ -156,31 +150,21 @@ class InteractivePlot:
 
         self.trip_hour.select(dict(type=GlyphRenderer))
         self.trip_hour.add_tools(HoverTool(renderers=[vbar],
-            tooltips=[("Trips", "@top")]))
+            tooltips=[("Trips", "@hour")]))
 
     def trip_hour_update(self):
-        data = [self.data.hour[i] + 1000 * random.randint(1, 5) for i in range(24)]
-        average = sum(data) / 24
-        self.trip_hour_source.data=dict(
-            x=range(24),
-            top=[self.data.hour[i] + 1000 * random.randint(1, 5) for i in range(24)]
-        )
-        self.trip_hour.title.text = "Hour: %d trips in average" % average
+        self.trip_hour_source.data=dict(hour=self.data.get_hour())
 
     def trip_distance_init(self, width=310, height=350, webgl=True):
         def ticker():
             labels = {0: '0~1', 1: '1~2', 2: '2~5', 3: '5~10', 4: '10~20', 5: '>20'}
             return labels[tick]
 
-        self.trip_distance = figure(webgl=webgl,
-            toolbar_location=None,
-            width=width, height=height, title='Distance')
-        x = range(6)
+        self.trip_distance = figure(webgl=webgl, toolbar_location=None,
+            width=width, height=height, title='Distance (miles)')
         self.trip_distance_source = ColumnDataSource(data=dict(
-            x=x,
-            top=[self.data.distance[i] for i in x]
-        ))
-        vbar = self.trip_distance.vbar(width=1, bottom=0, x='x', top='top',
+            x=range(6), dist=self.data.get_distance()))
+        vbar = self.trip_distance.vbar(width=1, bottom=0, x='x', top='dist',
             source=self.trip_distance_source, fill_alpha=0.7,
             line_color="white", color='#588c7e')
         self.trip_distance.y_range.start = 0
@@ -190,31 +174,21 @@ class InteractivePlot:
 
         self.trip_distance.select(dict(type=GlyphRenderer))
         self.trip_distance.add_tools(HoverTool(renderers=[vbar],
-            tooltips=[("Trips", "@top")]))
+            tooltips=[("Trips", "@dist")]))
 
     def trip_distance_update(self):
-        data = [self.data.distance[i] + 100 * random.randint(1, 5) for i in range(6)]
-        average = sum(data) / 6
-        self.trip_distance_source.data=dict(
-            x=range(6),
-            top=data
-        )
-        self.trip_distance.title.text = "Distance: %d miles in average" % average
+        self.trip_distance_source.data=dict(dist=self.data.get_distance())
 
     def trip_fare_init(self, width=310, height=350, webgl=True):
         def ticker():
             labels = {0: '0~5', 1: '5~10', 2: '10~25', 3: '25~50', 4: '50~100', 5: '>100'}
             return labels[tick]
 
-        self.trip_fare = figure(webgl=webgl,
-            toolbar_location=None,
-            width=width, height=height, title='fare')
-        x = range(6)
+        self.trip_fare = figure(webgl=webgl, toolbar_location=None,
+            width=width, height=height, title='Fare (US dolloars)')
         self.trip_fare_source = ColumnDataSource(data=dict(
-            x=x,
-            top=[self.data.fare[i] for i in x]
-        ))
-        vbar = self.trip_fare.vbar(width=1, bottom=0, x='x', top='top',
+            x=range(6), fare=self.data.get_fare()))
+        vbar = self.trip_fare.vbar(width=1, bottom=0, x='x', top='fare',
             source=self.trip_fare_source, fill_alpha=0.7,
             line_color="white", color='#ffcc5c')
         self.trip_fare.y_range.start = 0
@@ -225,16 +199,34 @@ class InteractivePlot:
 
         self.trip_fare.select(dict(type=GlyphRenderer))
         self.trip_fare.add_tools(HoverTool(renderers=[vbar],
-            tooltips=[("Trips", "@top")]))
+            tooltips=[("Trips", "@fare")]))
 
     def trip_fare_update(self):
-        data = [self.data.fare[i] + 100 * random.randint(1, 5) for i in range(6)]
-        average = sum(data) / 6
-        self.trip_fare_source.data=dict(
-            x=range(6),
-            top=data
-        )
-        self.trip_fare.title.text = "Fare: $%d in average" % average
+        self.trip_fare_source.data=dict(fare=self.data.get_fare())
+
+    def resource_usage_init(self, width=1480, height=120):
+        data_len = 4
+        self.resource_usage_source = ColumnDataSource(data=dict(
+              x=[0, 1, 2, 3, 4],
+            cpu=[2, 3, 5, 4, 10],
+            mem=[20, 10, 40, 30, 15]
+        ))
+        self.resource_usage = figure(plot_width=width, plot_height=height,
+            toolbar_location=None, title=None,
+            x_axis_label='Elapsed (seconds)', y_axis_label='%')
+
+        self.resource_usage.line(x='x', y='cpu',color='firebrick', legend='CPU',
+            line_alpha=0.8, line_width=2,
+            source=self.resource_usage_source)
+        self.resource_usage.line(x='x', y='mem', color='dodgerblue', legend='MEM',
+            line_alpha=0.8, line_width=2,
+            source=self.resource_usage_source)
+
+        self.resource_usage.xgrid.visible = False
+        self.resource_usage.ygrid.visible = False
+        self.resource_usage.x_range.start = 0
+        self.resource_usage.x_range.end = data_len * 1.07 
+        self.resource_usage.y_range.start = 0
 
     def plot(self):
         def update():
@@ -253,6 +245,7 @@ class InteractivePlot:
             self.trip_hour_update()
             self.trip_distance_update()
             self.trip_fare_update()
+            # self.resource_usage_update()
 
             min_year, max_year = year_range.range
             if min_year == max_year:
@@ -302,18 +295,7 @@ class InteractivePlot:
         self.trip_hour_init()
         self.trip_distance_init()
         self.trip_fare_init()
-
-        usage_data = dict(
-            CPU=[2, 3, 7, 5, 26, 221, 44, 233, 254, 265, 266, 267, 120, 111],
-            MEM=[12, 33, 47, 15, 126, 121, 144, 233, 254, 225, 226, 267, 110, 130],
-        )
-        resource_usage = Line(usage_data, plot_width=1500, plot_height=120,
-            toolbar_location=None, color=["firebrick", "seagreen"],
-            title=None, xlabel="Time", ylabel="%", legend='top_right')
-        resource_usage.xgrid.visible = False
-        resource_usage.ygrid.visible = False
-        resource_usage.x_range.start = 0
-        resource_usage.y_range.start = 0
+        self.resource_usage_init()
 
         rightdown_row = row([self.trip_distance, self.trip_fare])
         right_column = column([self.trip_hour, rightdown_row])
@@ -321,12 +303,11 @@ class InteractivePlot:
         l = layout([
             [desc],
             [inputs, self.hot_map, right_column],
-            [resource_usage],
+            [self.resource_usage],
         ], sizing_mode="fixed")
 
-        update()  # initial load of the data
-
         curdoc().add_root(l)
+        curdoc().add_periodic_callback(update, 5000)
         curdoc().title = "NYC Taxi Data Explorer"
 
 if __name__ == "__main__":

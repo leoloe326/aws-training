@@ -314,6 +314,19 @@ class TaxiStat(object):
         self.borough_pickups  = Counter()   # borough -> # of pickups
         self.borough_dropoffs = Counter()   # borough -> # of dropoffs
 
+    def get_hour(self):
+        return [self.hour[i] for i in range(24)]
+
+    def get_trip_time(self):
+        return [self.trip_time[i] \
+            for i in [0, 300, 600, 900, 1800, 2700, 3600]]
+
+    def get_distance(self):
+        return [self.distance[i] for i in [0, 1, 2, 5, 10, 20]]
+
+    def get_fare(self):
+        return [self.fare[i] for i in [0, 5, 10, 25, 50, 100]]
+
 class NYCTaxiStat(TaxiStat):
     START_DATE = RawReader.START_DATE
     def __init__(self, opts):
