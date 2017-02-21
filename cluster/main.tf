@@ -64,6 +64,19 @@ variable "mapper" {
         ebs_volume_size = ""
         ebs_volume_deletion = ""
 
+		use_asg                  = ""
+		asg_instance_types       = ""
+		asg_instance_counts      = ""
+		asg_termination_policies = ""
+
+		use_spotfeet             = ""
+		spot_instance_types      = ""
+		spot_instance_counts     = ""
+		spot_prices              = ""
+		spot_iam_role            = ""
+		spot_allocation_strategy = ""
+		spot_valid_until         = ""
+		spot_availability_zone   = ""
     }
 }
 
@@ -149,7 +162,7 @@ resource "aws_spot_instance_request" "mapper" {
     instance_type               = "${var.mapper["instance_type"]}"
     count                       = "${var.aws["use_spot_instances"] ? var.mapper["count"] : 0}"
     spot_price                  = "${var.mapper["spot_price"]}"
-	wait_for_fulfillment        = true
+    wait_for_fulfillment        = true
 
     ebs_block_device {
         device_name = "${var.mapper["ebs_device_name"]}"
@@ -166,6 +179,81 @@ resource "aws_spot_instance_request" "mapper" {
     }
 }
 
+# Auto-scaling and spot instances
+resource "aws_launch_configuration" "mapper" {
+	image_id = "${var.aws["ami"]}"
+	count = "${var.mapper["use_asg"] ? length(split(",", var.mapper["asg_instance_types"])) : 0}"
+	name  = "mapper-${element(split(",", var.mapper["asg_instance_types"]), count.index)}"
+	instance_type = "${element(split(",", var.mapper["asg_instance_types"]), count.index)}"
+	key_name = "${var.aws["key_name"]}"
+	security_groups = [ "${aws_security_group.default.id}", "${aws_security_group.mapper.id}" ]
+	user_data = "${file("userdata.sh")}"
+
+	enable_monitoring = "${var.aws["monitoring"]}"
+	iam_instance_profile = "${var.aws["iam_instance_profile"]}"
+
+	lifecycle {
+		create_before_destroy = true
+	}
+}
+
+resource "aws_autoscaling_group" "mapper" {
+	count = "${var.mapper["use_asg"] ? length(split(",", var.mapper["asg_instance_types"])) : 0}"
+	name  = "mapper-${element(split(",", var.mapper["asg_instance_types"]), count.index)}"
+	min_size = 0
+	max_size         = "${element(split(",", var.mapper["asg_instance_counts"]), count.index)}"
+	desired_capacity = "${element(split(",", var.mapper["asg_instance_counts"]), count.index)}"
+    termination_policies = [ "${split(",", var.mapper["asg_termination_policies"])}" ]
+	launch_configuration = "${element(aws_launch_configuration.mapper.*.name, count.index)}"
+	vpc_zone_identifier  = [ "${var.aws["subnet_id"]}" ]
+
+	tag {
+		key                 = "Environment"
+        value               = "${var.tags["environment"]}"
+		propagate_at_launch = true
+	}
+
+	tag {
+		key                 = "User"
+        value               = "${var.tags["user"]}"
+		propagate_at_launch = true
+	}
+
+	tag {
+		key                 = "Group"
+        value               = "mapper"
+		propagate_at_launch = true
+	}
+
+	tag {
+		key                 = "Name"
+        value               = "mapper-asg"
+		propagate_at_launch = true
+	}
+}
+
+resource "aws_spot_fleet_request" "mapper" {
+	iam_fleet_role = "${var.mapper["spot_iam_role"]}"
+	allocation_strategy = "${var.mapper["spot_allocation_strategy"]}"
+	valid_until = "${var.mapper["spot_valid_until"]}"
+	count = "${var.mapper["use_spotfleet"] ? length(split(",", var.mapper["spot_instance_types"])) : 0}"
+	target_capacity = "${element(split(",", var.mapper["spot_instance_counts"]), count.index)}"
+	spot_price = "${element(split(",", var.mapper["spot_prices"]), count.index)}"
+	terminate_instances_with_expiration = true
+	launch_specification {
+		ami = "${var.aws["ami"]}"
+		instance_type = "${element(split(",", var.mapper["spot_instance_types"]), count.index)}"
+		key_name = "${var.aws["key_name"]}"
+    	subnet_id = "${var.aws["subnet_id"]}"
+    	vpc_security_group_ids = [ "${aws_security_group.default.id}","${aws_security_group.mapper.id}" ]
+		monitoring = "${var.aws["monitoring"]}"
+		iam_instance_profile = "${var.aws["iam_instance_profile"]}"
+		weighted_capacity = 1
+		spot_price = "${element(split(",", var.mapper["spot_prices"]), count.index)}"
+		user_data = "${file("userdata.sh")}"
+	}
+}
+
 # Reducer
 resource "aws_instance" "reducer" {
     ami                         = "${var.aws["ami"]}"
@@ -178,7 +266,6 @@ resource "aws_instance" "reducer" {
 
     instance_type               = "${var.reducer["instance_type"]}"
     count                       = "${var.reducer["count"]}"
-	wait_for_fulfillment        = true
 
     tags {
         Environment = "${var.tags["environment"]}"
@@ -200,6 +287,7 @@ resource "aws_spot_instance_request" "reducer" {
     instance_type               = "${var.reducer["instance_type"]}"
     count                       = "${var.aws["use_spot_instances"] ? var.reducer["count"] : 0}"
     spot_price                  = "${var.reducer["spot_price"]}"
+    wait_for_fulfillment        = true
 
     tags {
         Environment = "${var.tags["environment"]}"
@@ -208,7 +296,6 @@ resource "aws_spot_instance_request" "reducer" {
         Name        = "reducer${count.index}"
     }
 }
-
 
 ### Security Groups ###
 resource "aws_security_group" "default" {
@@ -319,7 +406,7 @@ resource "aws_alb" "web" {
   subnets = ["${split(",", var.aws["subnet_ids"])}"]
   security_groups = [ "${aws_security_group.default.id}", "${aws_security_group.webserver.id}" ]
   enable_deletion_protection = false
-  count = "${(var.aws["use_load_balancer"] && var.webserver["count"]) ? 1 : 0}"
+  count = "${(var.aws["use_load_balancer"] && var.webserver["count"] > 0) ? 1 : 0}"
 
   tags {
     Environment = "${var.tags["environment"]}"
@@ -347,7 +434,7 @@ resource "aws_alb_listener" "web" {
   load_balancer_arn = "${aws_alb.web.id}"
   port              = "80"
   protocol          = "HTTP"
-  count             = "${(var.aws["use_load_balancer"] && var.webserver["count"]) ? 1 : 0}"
+  count             = "${(var.aws["use_load_balancer"] && var.webserver["count"] > 0) ? 1 : 0}"
 
   default_action {
     target_group_arn = "${element(aws_alb_target_group.web.*.arn, 0)}"
@@ -383,7 +470,7 @@ resource "aws_route53_record" "webserver" {
 
 resource "aws_route53_record" "web" {
     zone_id = "${var.aws["route53_zone"]}"
-    count = "${(var.aws["use_load_balancer"] && var.webserver["count"]) ? 1 : 0}"
+    count = "${(var.aws["use_load_balancer"] && var.webserver["count"] > 0) ? 1 : 0}"
     name    = "web"
     type    = "CNAME"
     ttl     = "300"

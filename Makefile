@@ -46,7 +46,8 @@ debug:
 clean:
 	@cd scripts/ && ./ec2_benchmark.py --clean --verbose 2
 	@echo "Clean the project..."
-	rm -rf *.pyc */*.pyc
+	@cd scripts/ && ./run_ddb.sh stop
+	rm -rf *.pyc */*.pyc */*.db
 
 .PHONY: version
 version:

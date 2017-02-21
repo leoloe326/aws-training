@@ -39,7 +39,7 @@
         "sudo rm -rf /tmp/install_java.sh",
 
         "sudo `which pip` install -U pip",
-        "sudo `which pip` install -U boto boto3 awscli ansible bokeh paramiko bytebuffer jmespath-terminal pandas shapely"
+        "sudo `which pip` install -U boto boto3 awscli ansible bokeh paramiko bytebuffer jmespath-terminal pandas shapely flexx"
       ]
     }
   ]

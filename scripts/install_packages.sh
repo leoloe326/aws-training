@@ -5,10 +5,10 @@
 PREFIX=${PREFIX:-${HOME}/local}
 
 PYTHON_PACKAGES=${PYTHON_PACKAGES:-"awscli aws-shell boto boto3 bokeh paramiko \
-shapely bytebuffer jmespath-terminal ansible"}
+shapely bytebuffer jmespath-terminal ansible flexx"}
 
 PACKER_VERSION=${PACKER_VERSION:-0.12.2}
-TERRAFORM_VERSION=${TERRAFORM_VERSION:-0.8.5}
+TERRAFORM_VERSION=${TERRAFORM_VERSION:-0.8.7}
 
 # Install Python Packages
 echo "Installing ${PYTHON_PACKAGES}..."
@@ -39,4 +39,23 @@ else
 	mkdir -p ${PREFIX}/bin
     unzip terraform.zip -d ${PREFIX}/bin
     rm -rf terraform.zip
+fi
+
+# Install DynamoDB Local
+# http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html
+DDB_URL="https://s3-us-west-2.amazonaws.com/dynamodb-local/dynamodb_local_latest.tar.gz"
+DDB_PATH=$PREFIX/dynamodb
+if [ ! -d "$DDB_PATH" ]; then
+	mkdir -p $DDB_PATH
+	curl $DDB_URL | tar zxv -C $DDB_PATH
+fi
+
+# Install ECS CLI
+ECSCLI_URL="https://s3.amazonaws.com/amazon-ecs-cli/ecs-cli-darwin-amd64-latest"
+ECSCLI_BIN=$(command -v ecs-cli)
+if [ ! -z "${ECSCLI_BIN}" ]; then
+    echo "$(ecs-cli -v) already installed at ${ECSCLI_BIN}, skip..."
+else
+	curl ${ECSCLI_URL} -o ${PREFIX}/bin/ecs-cli
+	chmod +x ${PREFIX}/bin/ecs-cli
 fi
