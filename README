@@ -1,22 +1,24 @@
 AWS Full-Stack Training Camp by Nan Dun <nan.dun@acm.org>
 
 # MUST Know Before Start
- - SSH
- - Bash
- - Git
+  * SSH
+  * Bash
+  * Git
 
 # Preparation
- - Create and setup Bitbucket account
-   1. Signup at https://bitbucket.org/account/signup/
-   2. Create SSH key and add it your account
-     - https://confluence.atlassian.com/bitbucketserver/creating-ssh-keys-776639788.html
-     - https://confluence.atlassian.com/bitbucket/add-an-ssh-key-to-an-account-302811853.html
+  * Create and setup Bitbucket account
+    1. Signup at https://bitbucket.org/account/signup/
+    2. Create SSH key and add it your account
+       - https://confluence.atlassian.com/bitbucketserver/creating-ssh-keys-776639788.html
+       - https://confluence.atlassian.com/bitbucket/add-an-ssh-key-to-an-account-302811853.html
 
- - Create AWS account
+  * Create AWS account
 
- - Send Bitbucket and AWS account IDs to <nan.dun@acm.org>
+  * Send Bitbucket and AWS account IDs to <nan.dun@acm.org>
    1. Bitbuket ID or register email
    2. AWS: https://console.aws.amazon.com/billing/home?#/account
+
+  * Docker Hub account
 
 # Repository Structure
  - /
@@ -30,3 +32,7 @@ AWS Full-Stack Training Camp by Nan Dun <nan.dun@acm.org>
 # Links
   - Repoistory: git@bitbucket.org:bittiger-aws/aws.git
   - Email: bittiger-aws@googlegroups.com
+
+# Documents and Resources
+  * Docker
+    - https://github.com/wsargent/docker-cheat-sheet
