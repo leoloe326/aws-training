@@ -509,6 +509,9 @@ def start_multiprocess(opts):
         results = procs.map(start_process, tasks)
     except Exception as e:
         fatal(e)
+    finally:
+        procs.close()
+        procs.join()
 
     master = results[0]
     for res in results[1:]: master += res
