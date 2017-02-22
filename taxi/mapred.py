@@ -504,7 +504,10 @@ def start_multiprocess(opts):
         procs.join()
 
     master = results[0]
-    for res in results[1:]: master += res
+    info("reduce result of [%d, %d]" % (master.opts.start, master.opts.end))
+    for res in results[1:]:
+        info("reduce result of [%d, %d]" % (res.opts.start, res.opts.end))
+        master += res
     db.append(master)
 
     if opts.report: master.report()
