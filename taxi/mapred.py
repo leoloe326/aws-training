@@ -9,7 +9,6 @@ import argparse
 import copy
 import datetime
 import decimal
-import fileinput
 import io
 import json
 import logging
@@ -85,6 +84,9 @@ def parse_argv():
              MAX_DATE[args.color].strftime('%Y-%m'),
              args.color))
 
+    if args.start < 0 or args.start > args.end:
+        fatal("invalid range [%d, %d]" % (args.start, args.end))
+
     logging.basicConfig()
 
     return args
@@ -105,36 +107,19 @@ class RecordReader(io.IOBase):
         self.s3 = boto3.resource('s3')
         self.client = boto3.client('s3')
 
-    def open(self, color, year, month, source,
-             start=0, end=sys.maxint, nParts=1, nth=0):
+        self.proc = multiprocessing.current_process().name
 
-        def create_range(path):
-            if self.start < 0 or self.start > self.end:
-                raise ValueError("invalid range [%d, %d] for %s (records=%d)" %\
-                    (self.start, self.end, path, self.n_records))
-
-            self.end = min(self.n_records, end)
-            self.start, self.end = TaskManager.cut(self.start, self.end, nParts, nth)
-            info("proc %02d read: %s [%d, %d)" % (nth, path, self.start, self.end))
-
+    def open(self, color, year, month, source, start, end):
         self.start = start
         self.end = end
         self.skip = None
 
-        if source == '-':
-            self.data_type = self.DATA_STDIN
-            if self.start < 0 or self.start > self.end:
-                fatal("invalid range [%d, %d] for stdin" % (self.start, self.end))
-
-            self.skip = self.start
-            self.data = fileinput.input('-')
-
-        elif source.startswith('file://'):
+        if source.startswith('file://'):
             self.data_type = self.DATA_FILE
             self.data_type = 'file'
             directory = os.path.realpath(source[7:])
             if not os.path.isdir(directory):
-                fatal("%s is not a directory." % directory)
+                raise OSError("%s is not a directory." % directory)
 
             path = '%s/%s-%s-%02d.csv' % (directory, color, year, month)
             if not os.path.exists(path):
@@ -143,7 +128,8 @@ class RecordReader(io.IOBase):
                 raise OSError("%s is not a regular file." % path)
 
             self.n_records = os.path.getsize(path) / self.MAX_RECORD_LENGTH
-            create_range('file://' + path)
+            self.end = min(self.end, self.n_records)
+            info("%s read: file://%s [%d, %d)" % (self.proc, path, self.start, self.end))
 
             self.data = open(path, 'r')
             self.data.seek(self.MAX_RECORD_LENGTH * self.start)
@@ -164,7 +150,8 @@ class RecordReader(io.IOBase):
             obj = bucket.Object(key)
 
             self.n_records = obj.content_length / self.MAX_RECORD_LENGTH
-            create_range('s3://' + key)
+            self.end = min(self.end, self.n_records)
+            info("%s read: s3://%s [%d, %d)" % (self.proc, key, self.start, self.end))
             bytes_range = 'bytes=%d-%d' % \
                 (self.start * self.MAX_RECORD_LENGTH, \
                  self.end * self.MAX_RECORD_LENGTH - 1)
@@ -476,8 +463,7 @@ class NYCTaxiStat(TaxiStat):
         try:
             with self.reader.open(\
                 self.opts.color, self.opts.year, self.opts.month, \
-                self.opts.src, self.opts.start, self.opts.end, \
-                self.opts.nprocs, self.opts.proc_idx) as fin:
+                self.opts.src, self.opts.start, self.opts.end) as fin:
                 for line in fin.readlines(): self.search(line)
         except KeyboardInterrupt as e:
             return
@@ -496,16 +482,20 @@ def start_process(opts):
     return p
 
 def start_multiprocess(opts):
+    def init():
+        _, idx = multiprocessing.current_process().name.split('-')
+        multiprocessing.current_process().name = 'mapper%02d' % int(idx)
+
     db = StatDB(opts)
 
     tasks = []
-    for i in range(opts.nprocs):
+    for start, end in TaskManager.cut(opts.start, opts.end, opts.nprocs):
         opts_copy = copy.deepcopy(opts)
-        opts_copy.proc_idx = i
+        opts_copy.start, opts_copy.end = start, end
         tasks.append(opts_copy)
 
     try:
-        procs = multiprocessing.Pool(processes=opts.nprocs)
+        procs = multiprocessing.Pool(processes=opts.nprocs, initializer=init)
         results = procs.map(start_process, tasks)
     except Exception as e:
         fatal(e)
