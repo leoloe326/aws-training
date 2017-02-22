@@ -283,7 +283,7 @@ class InteractivePlot:
         month_range = RangeSlider(title="Month", start=1, end=12, step=1, range=(1, 12))
         month_range.on_change('range', lambda attr, old, new: update())
 
-        emr_size = Slider(title="Nodes", start=1, end=10, value=1, step=1)
+        emr_size = Slider(title="EC2 Instances", start=1, end=10, value=1, step=1)
         emr_size.on_change('value', lambda attr, old, new: update())
 
         controls = [taxi_type, pickup_or_dropoff, borough, year_range, month_range, emr_size]
