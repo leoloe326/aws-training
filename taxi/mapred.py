@@ -107,6 +107,7 @@ class RecordReader(io.IOBase):
         self.s3 = boto3.resource('s3')
         self.client = boto3.client('s3')
 
+        self.path = ''
         self.proc = multiprocessing.current_process().name
 
     def open(self, color, year, month, source, start, end):
@@ -126,10 +127,10 @@ class RecordReader(io.IOBase):
                 raise OSError("%s does not exist." % path)
             if not os.path.isfile(path):
                 raise OSError("%s is not a regular file." % path)
+            self.path = 'file://' + path
 
             self.n_records = os.path.getsize(path) / self.MAX_RECORD_LENGTH
             self.end = min(self.end, self.n_records)
-            info("%s read: file://%s [%d, %d)" % (self.proc, path, self.start, self.end))
 
             self.data = open(path, 'r')
             self.data.seek(self.MAX_RECORD_LENGTH * self.start)
@@ -148,15 +149,17 @@ class RecordReader(io.IOBase):
             # HOWTO: read object by range
             key = '%s-%s-%02d.csv' % (color, year, month)
             obj = bucket.Object(key)
+            self.path = 's3://%s/%s' %(bucket.name, key)
 
             self.n_records = obj.content_length / self.MAX_RECORD_LENGTH
             self.end = min(self.end, self.n_records)
-            info("%s read: s3://%s [%d, %d)" % (self.proc, key, self.start, self.end))
             bytes_range = 'bytes=%d-%d' % \
                 (self.start * self.MAX_RECORD_LENGTH, \
                  self.end * self.MAX_RECORD_LENGTH - 1)
             self.data = obj.get(Range=bytes_range)['Body']
 
+        info("%s read: %s [%d, %d)" % \
+            (self.proc, self.path, self.start, self.end))
         return self
 
     def readline(self):
@@ -322,8 +325,10 @@ class NYCTaxiStat(TaxiStat):
         self.reader = RecordReader()
         self.elapsed = 0
         self.districts = NYCGeoPolygon.load_districts()
+        self.path = ''
 
     def __add__(self, x):
+        if self is x: return self
         self.total += x.total
         self.invalid += x.invalid
         self.pickups += x.pickups
@@ -334,6 +339,10 @@ class NYCTaxiStat(TaxiStat):
         self.fare += x.fare
         self.elapsed = max(self.elapsed, x.elapsed)
         return self
+
+    def __repr__(self):
+        return '%s [%d, %d)' % \
+            (self.path, self.opts.start, self.opts.end)
 
     def search(self, line):
         def delta_time(seconds):
@@ -464,6 +473,7 @@ class NYCTaxiStat(TaxiStat):
             with self.reader.open(\
                 self.opts.color, self.opts.year, self.opts.month, \
                 self.opts.src, self.opts.start, self.opts.end) as fin:
+                self.path = fin.path
                 for line in fin.readlines(): self.search(line)
         except KeyboardInterrupt as e:
             return
@@ -504,9 +514,8 @@ def start_multiprocess(opts):
         procs.join()
 
     master = results[0]
-    info("reduce result of [%d, %d]" % (master.opts.start, master.opts.end))
-    for res in results[1:]:
-        info("reduce result of [%d, %d]" % (res.opts.start, res.opts.end))
+    for res in results:
+        info('reduce %r' % res)
         master += res
     db.append(master)
 
