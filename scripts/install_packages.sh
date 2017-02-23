@@ -73,4 +73,5 @@ if [ ! -z "${DOCKER_BIN}" ]; then
 else
 	curl ${DOCKER_URL} -o Docker.dmg
 	open Docker.dmg
+	echo "Don't forget to run Docker.app from Launchpad."
 fi
