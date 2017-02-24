@@ -3,6 +3,9 @@
 # Copyright 2017, Nan Dun <nan.dun@acm.org>
 # All rights reserved.
 
+# Copyright 2017, Nan Dun <nan.dun@acm.org>
+# All rights reserved.
+
 # Tasks Management and Queuing
 
 import logging
@@ -12,9 +15,25 @@ import time
 import boto3
 import botocore
 
+from common import *
 from raw2aws import RawReader
 
 logging.basicConfig()
+
+def parse_argv():
+    o = Options()
+    o.add('--create-tasks', type=int, dest='create_tasks', metavar='NUM',
+        default=0, help='create tasks')
+    o.add('--receive-task', type=int, dest='receive_tasks', metavar='NUM',
+        default=0, help='receive tasks')
+    o.add('--delete-after-receive', dest='delete_received', action='store_true',
+        default=False, help='delete task after successfully received tasks')
+    o.add('--count-tasks', dest='count_tasks', action='store_true',
+        default=False, help='count tasks')
+    o.add('--purge-queue', dest='purge_queue', action='store_true',
+        default=False, help='purge queue')
+    
+    return o.load()
 
 class Task:
     def __init__(self, color, year, month, start, end,
@@ -50,19 +69,21 @@ class Task:
             (self.__dict__)
 
 class TaskManager:
-    MAX_RECORD_LENGTH = RawReader.MAX_RECORD_LENGTH
     DEFAULT_QUEUE = 'https://sqs.us-west-2.amazonaws.com/026979347307/taxi'
 
-    def __init__(self, url=None):
-        self.sqs = boto3.resource('sqs')
-        if url is None: url = self.DEFAULT_QUEUE
-        self.queue = self.sqs.Queue(url)
-
-        self.s3 = boto3.resource('s3')
-        self.bucket = self.s3.Bucket('aws-nyc-taxi-data')
+    def __init__(self, opts):
+        self.opts = opts
 
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(self.opts.verbose)
+
+        self.sqs = boto3.resource('sqs')
+        self.queue = self.sqs.Queue(self.opts.sqs_queue)
+        #self.logger.debug('use queue:%s' % self.opts.sqs_queue)
+
+        self.s3 = boto3.resource('s3')
+        self.bucket = self.s3.Bucket(self.opts.bucket)
+        #self.logger.debug('use bucket:%s' % self.bucket.name)
 
     def fatal(self, message):
         self.logger.critical(message)
@@ -77,6 +98,8 @@ class TaskManager:
         return [parts[nth], parts[nth+1]]
 
     def create_tasks(self, color, year, month, n_tasks):
+        if n_tasks == 0: return
+
         try:
             self.s3.meta.client.head_bucket(Bucket=self.bucket.name)
         except botocore.exceptions.ClientError as e:
@@ -86,7 +109,7 @@ class TaskManager:
 
         key = '%s-%s-%02d.csv' % (color, year, month)
         obj = self.bucket.Object(key)
-        n_records = obj.content_length / self.MAX_RECORD_LENGTH
+        n_records = obj.content_length / RECORD_LENGTH
 
         self.logger.debug('create tasks for s3://%s/%s (%d)' % \
             (self.bucket.name, key, n_records))
@@ -94,10 +117,10 @@ class TaskManager:
         for r in self.cut(0, n_records, n_tasks):
             task = Task(color, year, month, r[0], r[1])
             self.logger.debug('%r => create' % task)
-            self.queue.send_message(MessageBody=task.encode())
+            if not self.opts.dryrun:
+                self.queue.send_message(MessageBody=task.encode())
 
-    def retrieve_task(self, hold=True):
-        """Retrieve one task"""
+    def retrieve_task(self, delete=True):
         try:
             message = self.queue.receive_messages(
                 MaxNumberOfMessages=1, WaitTimeSeconds=1)[0]
@@ -109,12 +132,12 @@ class TaskManager:
         self.logger.debug('%r => retreive' % task)
 
         # change task visiblity in case of failure and retry
-        if hold:
-            self.logger.debug('%r (%s) => hold' % (task, task.sqs_id))
-            message.change_visibility(VisibilityTimeout=task.timeout)
-        else:
+        if delete:
             self.logger.debug('%r (%s) => delete' % (task, task.sqs_id))
             message.delete()
+        else:
+            self.logger.debug('%r (%s) => hold' % (task, task.sqs_id))
+            message.change_visibility(VisibilityTimeout=task.timeout)
 
         return task
 
@@ -123,9 +146,28 @@ class TaskManager:
         self.queue.delete_messages(
             Entries = [{'Id': task.sqs_id, 'ReceiptHandle': task.sqs_handle}])
 
+    def count_tasks(self):
+        attr = self.queue.attributes
+        remain = attr['ApproximateNumberOfMessages']
+        retry = attr['ApproximateNumberOfMessagesNotVisible']
+        return remain, retry
+
+    def purge_queue(self):
+        self.logger.warning('%s => purge' % self.opts.sqs_queue)
+        self.queue.purge()
+
+    def run(self):
+        self.create_tasks(self.opts.color, self.opts.year, self.opts.month,
+            self.opts.create_tasks)
+
+        if self.opts.count_tasks:
+            print('remain: %d, retry: %d' % self.count_tasks())
+
+        for i in range(self.opts.recieve_tasks):
+            self.retrieve_task(self.opts.delete_received)
+
+        if self.opts.purge_queue: self.purge_queue()
+
 if __name__ == '__main__':
-    tm = TaskManager()
-    tm.create_tasks('green', 2016, 1, 1000)
-    #task = tm.retrieve_task()
-    #time.sleep(10)
-    #tm.delete_task(task)
+    tm = TaskManager(parse_argv())
+    tm.run()
