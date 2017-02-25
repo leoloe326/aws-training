@@ -19,6 +19,8 @@ def parse_argv():
     o = Options()
     o.add('--create-tasks', type=int, dest='create_tasks', metavar='NUM',
         default=-1, help='create tasks')
+    o.add('--limit-tasks', type=int, dest='limit_tasks', metavar='NUM',
+        default=sys.maxint, help='number of tasks to be put into queue')
     o.add('--receive-tasks', type=int, dest='receive_tasks', metavar='NUM',
         default=0, help='receive tasks')
     o.add('--delete-after-receive', dest='delete_received', action='store_true',
@@ -70,7 +72,7 @@ class TaskManager:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(self.opts.verbose)
 
-        self.sqs = boto3.resource('sqs')
+        self.sqs = boto3.resource('sqs', region_name=opts.region)
         self.logger.debug('queue:%s' % self.opts.sqs_queue)
         self.queue = self.sqs.Queue(self.opts.sqs_queue)
 
@@ -106,11 +108,14 @@ class TaskManager:
         self.logger.debug('create tasks for s3://%s/%s (%d)' % \
             (self.bucket.name, key, n_records))
 
+        tasks_in_queue = 0
         for r in self.cut(0, n_records, n_tasks):
+            if tasks_in_queue >= self.opts.limit_tasks: break
             task = Task(color, year, month, r[0], r[1])
             self.logger.debug('%r => create' % task)
             if not self.opts.dryrun:
                 self.queue.send_message(MessageBody=task.encode())
+            tasks_in_queue += 1
 
     def retrieve_task(self, delete=False, **kwargs):
         try:
