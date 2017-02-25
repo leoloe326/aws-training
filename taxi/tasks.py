@@ -137,6 +137,7 @@ class TaskManager:
             Entries = [{'Id': task.sqs_id, 'ReceiptHandle': task.sqs_handle}])
 
     def count_tasks(self):
+        self.queue.reload()
         attr = self.queue.attributes
         remain = int(attr['ApproximateNumberOfMessages'])
         retry  = int(attr['ApproximateNumberOfMessagesNotVisible'])
