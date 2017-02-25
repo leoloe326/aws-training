@@ -13,8 +13,8 @@ CMD=''
 
 USER_NAME=${USER_NAME:-"admin"}
 AWS_USER_ID=$(aws iam get-user --user-name $USER_NAME --output text | cut -f 5,5 | awk '{print tolower($0)}')
-SRC_BUCKET="s3-cli-demo-${AWS_USER_ID}-src"
-DST_BUCKET="s3-cli-demo-${AWS_USER_ID}-dst"
+SRC_BUCKET="s3-demo-${AWS_USER_ID}-src"
+DST_BUCKET="s3-demo-${AWS_USER_ID}-dst"
 
 # Functions
 function list_s3_endpoints() {
@@ -63,7 +63,7 @@ aws s3 cp s3://${SRC_BUCKET} s3://${DST_BUCKET} --recursive"
 
 # download a file to stdout
 [ 9 = $CHOICE ] && CMD="\
-aws s3 cp s3://${SRC_BUCKET}/scripts/s3.sh -"
+aws s3 cp s3://${SRC_BUCKET}/scripts/s3.sh - "
 
 if [ -z "$CMD" ]; then
   printf "error: no such choice: %s\n" "$CHOICE" 1>&2

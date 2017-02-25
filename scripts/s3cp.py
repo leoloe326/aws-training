@@ -24,7 +24,7 @@ from cStringIO import StringIO
 VERBOSE_INFO  = 0
 VERBOSE_DEBUG = 1
 VERBOSE_TRACE = 2
-VERBOSE_LEVEL = VERBOSE_INFO
+VERBOSE_LEVEL = VERBOSE_TRACE
 
 def fatal(message=''):
     if message:
