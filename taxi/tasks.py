@@ -106,8 +106,9 @@ class TaskManager:
         self.logger.debug('create tasks for s3://%s/%s (%d)' % \
             (self.bucket.name, key, n_records))
 
-        for r in self.cut(0, n_records, n_tasks):
-            task = Task(color, year, month, r[0], r[1])
+        for record_range in self.cut(0, n_records, n_tasks):
+            task = Task(color, year, month, record_range[0], record_range[1],
+                int(self.opts.task_timeout))
             self.logger.debug('%r => create' % task)
             if not self.opts.dryrun:
                 self.queue.send_message(MessageBody=task.encode())
