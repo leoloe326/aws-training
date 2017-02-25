@@ -4,10 +4,10 @@
 
 set -e
 
-AMI_SPEC=${1:-"ami.json"}
+AMI_SPEC=${1:-"amzn-ami.json ecs-ami.json"}
 
-echo "Build customized AMI..."
-
-packer validate ./${AMI_SPEC}
-
-packer build -color=false ${AMI_SPEC}
+for ami in ${AMI_SPEC}; do
+	echo "Build customized AMI from ${ami}..."
+	packer validate ./${ami}
+	packer build -color=false ${ami}
+done

@@ -89,6 +89,16 @@ variable "reducer" {
     }
 }
 
+variable "docker" {
+    type = "map"
+    default = {
+        ami           = ""
+        instance_type = ""
+        count         = 0
+		spot_price    = ""
+    }
+}
+
 provider "aws" {
     region = "${var.aws["region"]}"
 }
@@ -135,12 +145,12 @@ resource "aws_instance" "mapper" {
     instance_type               = "${var.mapper["instance_type"]}"
     count                       = "${var.aws["use_spot_instances"] ? 0 : var.mapper["count"]}"
 
-    ebs_block_device {
-        device_name = "${var.mapper["ebs_device_name"]}"
-        volume_size = "${var.mapper["ebs_volume_size"]}"
-        volume_type = "${var.mapper["ebs_volume_type"]}"
-        delete_on_termination = "${var.mapper["ebs_volume_deletion"]}"
-    }
+    #ebs_block_device {
+    #    device_name = "${var.mapper["ebs_device_name"]}"
+    #    volume_size = "${var.mapper["ebs_volume_size"]}"
+    #    volume_type = "${var.mapper["ebs_volume_type"]}"
+    #    delete_on_termination = "${var.mapper["ebs_volume_deletion"]}"
+    #}
 
     tags {
         Environment = "${var.tags["environment"]}"
@@ -294,6 +304,49 @@ resource "aws_spot_instance_request" "reducer" {
         User        = "${var.tags["user"]}"
         Group       = "reducer"
         Name        = "reducer${count.index}"
+    }
+}
+
+# Docker
+resource "aws_instance" "docker" {
+    ami                         = "${var.docker["ami"]}"
+    vpc_security_group_ids      = [ "${aws_security_group.default.id}", "${aws_security_group.mapper.id}" ]
+    subnet_id                   = "${var.aws["subnet_id"]}"
+    key_name                    = "${var.aws["key_name"]}"
+    monitoring                  = "${var.aws["monitoring"]}"
+    associate_public_ip_address = "${var.aws["associate_public_ip_address"]}"
+    iam_instance_profile        = "${var.aws["iam_instance_profile"]}"
+
+    instance_type               = "${var.docker["instance_type"]}"
+    count                       = "${var.aws["use_spot_instances"] ? 0 : var.docker["count"]}"
+
+    tags {
+        Environment = "${var.tags["environment"]}"
+        User        = "${var.tags["user"]}"
+        Group       = "docker"
+        Name        = "docker${count.index}"
+    }
+}
+
+resource "aws_spot_instance_request" "docker" {
+    ami                         = "${var.docker["ami"]}"
+    vpc_security_group_ids      = [ "${aws_security_group.default.id}", "${aws_security_group.reducer.id}" ]
+    subnet_id                   = "${var.aws["subnet_id"]}"
+    key_name                    = "${var.aws["key_name"]}"
+    monitoring                  = "${var.aws["monitoring"]}"
+    associate_public_ip_address = "${var.aws["associate_public_ip_address"]}"
+    iam_instance_profile        = "${var.aws["iam_instance_profile"]}"
+
+    instance_type               = "${var.docker["instance_type"]}"
+    count                       = "${var.aws["use_spot_instances"] ? var.docker["count"] : 0}"
+    spot_price                  = "${var.docker["spot_price"]}"
+    wait_for_fulfillment        = true
+
+    tags {
+        Environment = "${var.tags["environment"]}"
+        User        = "${var.tags["user"]}"
+        Group       = "docker"
+        Name        = "docker${count.index}"
     }
 }
 
@@ -513,6 +566,24 @@ resource "aws_route53_record" "reducer_spot" {
     records = ["${element(aws_spot_instance_request.reducer.*.public_ip, count.index)}"]
 }
 
+resource "aws_route53_record" "docker" {
+    zone_id = "${var.aws["route53_zone"]}"
+    count   = "${var.aws["use_spot_instances"] ? 0 : var.docker["count"]}"
+    name    = "${element(aws_instance.docker.*.tags.Name, count.index)}"
+    type    = "A"
+    ttl     = "300"
+    records = ["${element(aws_instance.docker.*.public_ip, count.index)}"]
+}
+
+resource "aws_route53_record" "docker_spot" {
+    zone_id = "${var.aws["route53_zone"]}"
+    count   = "${var.aws["use_spot_instances"] ? var.docker["count"] : 0}"
+    name    = "${element(aws_spot_instance_request.docker.*.tags.Name, count.index)}"
+    type    = "A"
+    ttl     = "300"
+    records = ["${element(aws_spot_instance_request.docker.*.public_ip, count.index)}"]
+}
+
 ### Output ###
 output "webservers"  {
     value = ["${aws_route53_record.webserver.*.fqdn}"]
@@ -524,4 +595,8 @@ output "mappers" {
 
 output "reducers" {
     value = ["${aws_route53_record.reducer.*.fqdn}", "${aws_route53_record.reducer_spot.*.fqdn}"]
+}
+
+output "dockers" {
+    value = ["${aws_route53_record.docker.*.fqdn}", "${aws_route53_record.docker_spot.*.fqdn}"]
 }
