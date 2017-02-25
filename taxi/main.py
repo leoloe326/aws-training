@@ -7,7 +7,6 @@ from __future__ import print_function
 
 import argparse
 import os.path
-import random
 import time
 
 import raw2aws
@@ -152,7 +151,7 @@ class InteractivePlot:
             tooltips=[("Trips", "@hour")]))
 
     def trip_hour_update(self):
-        self.trip_hour_source.data=dict(hour=self.data.get_hour())
+        self.trip_hour_source.data=dict(x=range(24), hour=self.data.get_hour())
 
     def trip_distance_init(self, width=310, height=350, webgl=True):
         def ticker():
@@ -176,10 +175,7 @@ class InteractivePlot:
             tooltips=[("Trips", "@dist")]))
 
     def trip_distance_update(self):
-        data = self.data.get_distance()
-        data[0] = random.randint(1000, 2000)
-        #self.trip_distance_source.data=dict(dist=self.data.get_distance())
-        self.trip_distance_source.data=dict(x=range(6), dist=data)
+        self.trip_distance_source.data=dict(x=range(6), dist=self.data.get_distance())
 
     def trip_fare_init(self, width=310, height=350, webgl=True):
         def ticker():
@@ -203,7 +199,7 @@ class InteractivePlot:
             tooltips=[("Trips", "@fare")]))
 
     def trip_fare_update(self):
-        self.trip_fare_source.data=dict(fare=self.data.get_fare())
+        self.trip_fare_source.data=dict(x=range(6), fare=self.data.get_fare())
 
     def resource_usage_init(self, width=740, height=120):
         data_len = 4

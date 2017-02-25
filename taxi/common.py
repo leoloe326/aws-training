@@ -6,13 +6,24 @@
 from __future__ import print_function
 
 import argparse
+import datetime
 import logging
+import os.path
 import sys
 import ConfigParser
 
-__all__ = ['RECORD_LENGTH', 'fatal', 'error', 'Options']
+__all__ = ['RECORD_LENGTH', 'MIN_DATE', 'MAX_DATE', 'BASE_DATE', 'fatal', 'error', 'Options']
 
 RECORD_LENGTH = 80
+MIN_DATE = {
+    'yellow': datetime.datetime(2009, 1, 1),
+    'green' : datetime.datetime(2013, 8, 1)
+}
+MAX_DATE = {
+    'yellow': datetime.datetime(2016, 6, 30),
+    'green' : datetime.datetime(2016, 6, 30)
+}
+BASE_DATE = datetime.datetime(2009,1,1)
 
 def fatal(message):
     sys.stderr.write('fatal: %s\n' % message)
@@ -68,7 +79,8 @@ class Options:
 
         # load configurations
         p = ConfigParser.SafeConfigParser()
-        p.read(self.opts.config)
+        cwd = os.path.dirname(__file__)
+        p.read(os.path.join(cwd, self.opts.config))
         profile = 'debug' if self.opts.debug else 'default'
         for name, value in p.items(profile):
             setattr(self.opts, name, value)
@@ -78,6 +90,14 @@ class Options:
     def _validate(self):
         if self.opts.color not in ['yellow', 'green']:
             fatal('unknown color: %s' % self.opts.color)
+
+        date = datetime.datetime(self.opts.year, self.opts.month, 1)
+        if not (date >= MIN_DATE[self.opts.color] and \
+                date <= MAX_DATE[self.opts.color]):
+            fatal('date range must be from %s to %s for %s data' % \
+                (MIN_DATE[self.opts.color].strftime('%Y-%m'),
+                 MAX_DATE[self.opts.color].strftime('%Y-%m'),
+                 self.opts.color))
 
     def __str__(self):
         return '\n'.join(['%16s: %s' % (attr, value) for attr, value in

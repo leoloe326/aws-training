@@ -110,7 +110,7 @@ class TaskManager:
             if not self.opts.dryrun:
                 self.queue.send_message(MessageBody=task.encode())
 
-    def retrieve_task(self, delete=True):
+    def retrieve_task(self, delete=False, **kwargs):
         try:
             message = self.queue.receive_messages(
                 MaxNumberOfMessages=1, WaitTimeSeconds=1)[0]

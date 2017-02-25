@@ -159,7 +159,7 @@ class StatDB:
                     (opts.ddb_endpoint, self.table.table_name))
                 self.create_table()
 
-        #if self.opts.debug: self.table.delete(); self.create_table()
+        #if opts.debug: self.table.delete(); self.create_table()
         #self.create_table()
 
     def create_table(self):
@@ -227,6 +227,7 @@ class StatDB:
                 if key.startswith(prefix):
                     counter[int(key[1:])] = int(val)
 
+        stat = TaxiStat(color, year, month)
         try:
             response = self.table.get_item(
                 Key={
@@ -234,25 +235,25 @@ class StatDB:
                     'date': year * 100 + month
                 }
             )
+
+            values = response['Item']
+
+            stat.total = values['l']
+            stat.invalid = values['i']
+            add_stat(stat.pickups,   'p')
+            add_stat(stat.dropoffs,  'r')
+            add_stat(stat.hour,      'h')
+            add_stat(stat.trip_time, 't')
+            add_stat(stat.distance,  's')
+            add_stat(stat.fare,      'f')
+            add_stat(stat.borough_pickups,  'k')
+            add_stat(stat.borough_dropoffs, 'o')
         except botocore.exceptions.ClientError as e:
-            print(e.response['Error']['Message'])
-            return None
-
-        values = response['Item']
-        stat = TaxiStat(color, year, month)
-
-        stat.total = values['l']
-        stat.invalid = values['i']
-        add_stat(stat.pickups,   'p')
-        add_stat(stat.dropoffs,  'r')
-        add_stat(stat.hour,      'h')
-        add_stat(stat.trip_time, 't')
-        add_stat(stat.distance,  's')
-        add_stat(stat.fare,      'f')
-        add_stat(stat.borough_pickups,  'k')
-        add_stat(stat.borough_dropoffs, 'o')
-
-        return stat
+            logger.warning(e.response['Error']['Message'])
+        except KeyError:
+            logger.warning('item () => not found')
+        finally:
+            return stat
 
 class TaxiStat(object):
     def __init__(self, color=None, year=0, month=0):
