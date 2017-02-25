@@ -19,7 +19,7 @@ def parse_argv():
     o = Options()
     o.add('--create-tasks', type=int, dest='create_tasks', metavar='NUM',
         default=0, help='create tasks')
-    o.add('--receive-task', type=int, dest='receive_tasks', metavar='NUM',
+    o.add('--receive-tasks', type=int, dest='receive_tasks', metavar='NUM',
         default=0, help='receive tasks')
     o.add('--delete-after-receive', dest='delete_received', action='store_true',
         default=False, help='delete task after successful receive')
@@ -27,7 +27,7 @@ def parse_argv():
         default=False, help='count tasks')
     o.add('--purge-queue', dest='purge_queue', action='store_true',
         default=False, help='purge queue')
-    
+
     return o.load()
 
 class Task:
@@ -70,13 +70,13 @@ class TaskManager:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(self.opts.verbose)
 
-        #self.sqs = boto3.resource('sqs')
+        self.sqs = boto3.resource('sqs')
         self.logger.debug('queue:%s' % self.opts.sqs_queue)
-        #self.queue = self.sqs.Queue(self.opts.sqs_queue)
+        self.queue = self.sqs.Queue(self.opts.sqs_queue)
 
         self.s3 = boto3.resource('s3')
         self.logger.debug('bucket:%s' % self.opts.bucket)
-        #self.bucket = self.s3.Bucket(self.opts.bucket)
+        self.bucket = self.s3.Bucket(self.opts.bucket)
 
     @classmethod
     def cut(cls, start, end, N, nth=None):
@@ -151,10 +151,10 @@ class TaskManager:
             self.opts.create_tasks)
 
         if self.opts.count_tasks:
-            print('remain: %d, retry: %d' % self.count_tasks())
+            print('Tasks remain: %d, retry: %d' % self.count_tasks())
 
-        for i in range(self.opts.recieve_tasks):
-            self.retrieve_task(self.opts.delete_received)
+        for i in range(self.opts.receive_tasks):
+            print('received %r' % self.retrieve_task(self.opts.delete_received))
 
         if self.opts.purge_queue: self.purge_queue()
 
