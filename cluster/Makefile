@@ -82,7 +82,7 @@ apply:
 	$(TF) apply $(TF_FLAGS)
 	$(TF) remote push
 	@echo "Creating Ansible inventory..."
-	$(TF) output -json | ./json2ini.py --keywords webservers,mappers,reducers -o hosts
+	$(TF) output -json | ./json2ini.py --keywords webservers,mappers,reducers,dockers -o hosts
 
 .PHONY: deploy
 deploy:
