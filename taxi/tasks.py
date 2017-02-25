@@ -3,20 +3,15 @@
 # Copyright 2017, Nan Dun <nan.dun@acm.org>
 # All rights reserved.
 
-# Copyright 2017, Nan Dun <nan.dun@acm.org>
-# All rights reserved.
-
 # Tasks Management and Queuing
 
 import logging
 import sys
-import time
 
 import boto3
 import botocore
 
 from common import *
-from raw2aws import RawReader
 
 logging.basicConfig()
 
@@ -27,7 +22,7 @@ def parse_argv():
     o.add('--receive-task', type=int, dest='receive_tasks', metavar='NUM',
         default=0, help='receive tasks')
     o.add('--delete-after-receive', dest='delete_received', action='store_true',
-        default=False, help='delete task after successfully received tasks')
+        default=False, help='delete task after successful receive')
     o.add('--count-tasks', dest='count_tasks', action='store_true',
         default=False, help='count tasks')
     o.add('--purge-queue', dest='purge_queue', action='store_true',
@@ -69,25 +64,19 @@ class Task:
             (self.__dict__)
 
 class TaskManager:
-    DEFAULT_QUEUE = 'https://sqs.us-west-2.amazonaws.com/026979347307/taxi'
-
     def __init__(self, opts):
         self.opts = opts
 
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(self.opts.verbose)
 
-        self.sqs = boto3.resource('sqs')
-        self.queue = self.sqs.Queue(self.opts.sqs_queue)
-        #self.logger.debug('use queue:%s' % self.opts.sqs_queue)
+        #self.sqs = boto3.resource('sqs')
+        self.logger.debug('queue:%s' % self.opts.sqs_queue)
+        #self.queue = self.sqs.Queue(self.opts.sqs_queue)
 
         self.s3 = boto3.resource('s3')
-        self.bucket = self.s3.Bucket(self.opts.bucket)
-        #self.logger.debug('use bucket:%s' % self.bucket.name)
-
-    def fatal(self, message):
-        self.logger.critical(message)
-        sys.exit(1)
+        self.logger.debug('bucket:%s' % self.opts.bucket)
+        #self.bucket = self.s3.Bucket(self.opts.bucket)
 
     @classmethod
     def cut(cls, start, end, N, nth=None):
@@ -105,7 +94,8 @@ class TaskManager:
         except botocore.exceptions.ClientError as e:
             error_code = int(e.response['Error']['Code'])
             if error_code == 404:
-                self.fatal('s3://%s does not exists' % self.bucket.name)
+                self.logger.critical('s3://%s does not exists' % self.bucket.name)
+                sys.exit(1)
 
         key = '%s-%s-%02d.csv' % (color, year, month)
         obj = self.bucket.Object(key)
@@ -148,8 +138,8 @@ class TaskManager:
 
     def count_tasks(self):
         attr = self.queue.attributes
-        remain = attr['ApproximateNumberOfMessages']
-        retry = attr['ApproximateNumberOfMessagesNotVisible']
+        remain = int(attr['ApproximateNumberOfMessages'])
+        retry  = int(attr['ApproximateNumberOfMessagesNotVisible'])
         return remain, retry
 
     def purge_queue(self):
