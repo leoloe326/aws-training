@@ -6,6 +6,7 @@
 from __future__ import print_function
 
 import argparse
+import logging
 import os.path
 import time
 
@@ -15,16 +16,18 @@ from bokeh.plotting import figure
 #from bokeh.palettes import Viridis6 as palette
 from bokeh.palettes import GnBu6 as palette
 from bokeh.layouts import row, column, layout, widgetbox
-from bokeh.models import ColumnDataSource, HoverTool, Div, LogColorMapper, FixedTicker, FuncTickFormatter
-from bokeh.models.widgets import Dropdown, RangeSlider, RadioButtonGroup, Slider, Toggle
-from bokeh.models.widgets.inputs import DateRangeSlider, DatePicker
+from bokeh.models import ColumnDataSource, HoverTool, Div, LogColorMapper, \
+    FixedTicker, FuncTickFormatter
+from bokeh.models.widgets import Button, Dropdown, RadioButtonGroup, Toggle, Select
 from bokeh.models.renderers import GlyphRenderer
 from bokeh.io import curdoc
 
 from common import *
-from geo import NYCBorough,  NYCGeoPolygon
+from geo import NYCBorough, NYCGeoPolygon
 from mapred import StatDB
 from tasks import TaskManager
+
+logging.basicConfig()
 
 def parse_argv():
     o = Options()
@@ -33,9 +36,6 @@ def parse_argv():
 
 class InteractivePlot:
     def __init__(self, opts):
-        self.opts = opts
-
-        # data query
         self.db = StatDB(opts)
         self.data = None
         self.last_query = {
@@ -47,27 +47,25 @@ class InteractivePlot:
 
         self.tasks = TaskManager(opts)
 
-        self.boroughs = {v: k for k, v in NYCBorough.BOROUGHS.items()}
-
         self.districts = None
         self.districts_xs = []
         self.districts_ys = []
         self.districts_names = []
-
-        # figure elements
-        self.selects = {
-            'color': 'green',
-            'year': 2016,
-            'month': 1,
-            'type': 'pickup',
-            'borough': 0
-        }
-
+        
+        self.selected_type = 'Pickups'
+        self.selected_borough = 0
+        self.selected_color = 'green'
+        self.selected_year = 2016
+        self.selected_month = 1
         self.refresh_ticks = 0
+
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.setLevel(opts.verbose)
 
     def query(self, color, year, month):
         if time.time() - self.last_query['timestamp'] < 2: return
-
+        
+        year, mont = int(year), int(month)
         self.data = self.db.get(color, year, month)
         self.last_query['color'] = color
         self.last_query['year'] = year
@@ -105,6 +103,10 @@ class InteractivePlot:
         self.hot_map.patches('x', 'y', source=self.hot_map_source,
             fill_color={'field': 'rate', 'transform': color_mapper},
             fill_alpha=0.7, line_color="white", line_width=0.5)
+        self.hot_map.title.text = "%s %s/%s, %s" % \
+                (self.selected_type,
+                 self.selected_year, self.selected_month,
+                 NYCBorough.BOROUGHS[self.selected_borough])
 
         hover = self.hot_map.select_one(HoverTool)
         hover.point_policy = "follow_mouse"
@@ -114,13 +116,13 @@ class InteractivePlot:
             ("Coordinates", "($x, $y)"),
         ]
 
-    def hot_map_update(self, label):
+    def hot_map_update(self):
         rates = []
         for district in self.districts:
             rate = 0
-            borough = self.selects['borough']
+            borough = self.selected_borough
             if borough == 0 or borough == district.region:
-                if self.selects['type'] == 'pickup':
+                if self.selected_type == 'Pickups':
                     rate = self.data.pickups[district.index]
                 else:
                     rate = self.data.dropoffs[district.index]
@@ -132,6 +134,10 @@ class InteractivePlot:
             name=self.districts_names,
             rate=rates,
         )
+        self.hot_map.title.text = "%s %s/%s, %s" % \
+                (self.selected_type,
+                 self.selected_year, self.selected_month,
+                 NYCBorough.BOROUGHS[self.selected_borough])
 
     def trip_hour_init(self, width=620, height=350, webgl=True):
         self.trip_hour = figure(webgl=webgl, toolbar_location=None,
@@ -263,44 +269,42 @@ class InteractivePlot:
     def plot(self):
         def update():
             self.refresh_ticks += 1
-            self.query('green', 2016, 1)
+            self.query(self.selected_color, self.selected_year, self.selected_month)
 
-            if pickup_or_dropoff.active:
-                self.selects['type'] = 'pickup'
-                pickup_or_dropoff.label = 'Pickups'
-            else:
-                self.selects['type'] = 'dropoff'
-                pickup_or_dropoff.label = 'Dropoffs'
-
-            self.selects['borough'] = self.boroughs[borough.value]
-
-            self.hot_map_update(pickup_or_dropoff.label)
+            self.hot_map_update()
             self.trip_hour_update()
             self.trip_distance_update()
             self.trip_fare_update()
             self.tasks_stat_update()
             # self.resource_usage_update()
 
-            min_year, max_year = year_range.range
-            if min_year == max_year:
-                self.hot_map.title.text = "%s %d, %s" % \
-                    (pickup_or_dropoff.label, min_year, borough.value)
-            else:
-                self.hot_map.title.text = "%s, %d - %d, %s" % \
-                    (pickup_or_dropoff.label, min_year, max_year, borough.value)
-
+        def on_select():
+            BOROUGHS_CODE = {v: k for k, v in NYCBorough.BOROUGHS.items()}
+            self.selected_color = 'green' if color.active == 1 else 'yellow'
+            pickup.label = 'Pickups' if pickup.active else 'Dropoffs'
+            self.selected_type = pickup.label
+            self.selected_borough = BOROUGHS_CODE[borough.value]
             borough.label = borough.value
+            self.selected_year = int(year.value)
+            self.selected_month = int(month.value)
+
+        def on_submit():
+            self.logger.debug('submit (%s, %s, %s, %s, %s)' % \
+                (self.selected_type,
+                 NYCBorough.BOROUGHS[self.selected_borough],
+                 self.selected_color,
+                 self.selected_year, self.selected_month))
 
         cwd = os.path.dirname(__file__)
         desc = Div(text=open(
             os.path.join(cwd, "description.html")).read(), width=1000)
 
         # Create input controls
-        taxi_type = RadioButtonGroup(labels=["Yellow", "Green"], active=0)
-        taxi_type.on_change('active', lambda attr, old, new: update())
+        color = RadioButtonGroup(labels=['Yellow', 'Green'], active=1)
+        color.on_change('active', lambda attr, old, new: on_select())
 
-        pickup_or_dropoff = Toggle(label="Pickup", button_type="primary")
-        pickup_or_dropoff.on_change('active', lambda attr, old, new: update())
+        pickup = Toggle(label='Pickups', button_type="primary", active=True)
+        pickup.on_change('active', lambda attr, old, new: on_select())
 
         # BUG: Dropdown menu value cannot be integer, i.e., ('Mahattan', '1')
         borough_menu = [('All Boroughs', 'All Boroughs'), None,
@@ -309,30 +313,22 @@ class InteractivePlot:
         # https://github.com/bokeh/bokeh/issues/4915
         borough = Dropdown(label="Boroughs", button_type="warning",
             menu=borough_menu, value='All Boroughs')
-        borough.on_change('value', lambda attr, old, new: update())
+        borough.on_change('value', lambda attr, old, new: on_select())
 
-        year_range = RangeSlider(title="Year", start=2009, end=2016, step=1, range=(2009, 2009))
-        year_range.on_change('range', lambda attr, old, new: update())
+        year = Select(title="Year:", value=str(self.selected_year),
+            options=[str(y) for y in range(MIN_DATE['green'].year, MAX_DATE['green'].year+1)])
+        year.on_change('value', lambda attr, old, new: on_select())
 
-        #date_range = DateRangeSlider(
-        #    bounds=(raw2aws.MIN_DATE['green'], raw2aws.MAX_DATE['green']))
-        #date_range.on_change('range', lambda attr, old, new: update())
-        date_range = DatePicker(
-            min_date=raw2aws.MIN_DATE['green'], max_date=raw2aws.MAX_DATE['green'])
-        date_range.on_change('value', lambda attr, old, new: update())
+        month = Select(title="Month:", value=str(self.selected_month),
+            options=[str(m) for m in range(1, 13)])
+        month.on_change('value', lambda attr, old, new: on_select())
 
-        month_range = RangeSlider(title="Month", start=1, end=12, step=1, range=(1, 12))
-        month_range.on_change('range', lambda attr, old, new: update())
+        submit = Button(label="Submit", button_type="success")
+        submit.on_click(on_submit)
 
-        emr_size = Slider(title="EC2 Instances", start=1, end=10, value=1, step=1)
-        emr_size.on_change('value', lambda attr, old, new: update())
+        controls = [color, pickup, borough, year, month, submit]
 
-        controls = [taxi_type, pickup_or_dropoff, borough, year_range,
-        month_range, date_range, emr_size]
-
-        # Pickup/Dropoff Map
-        self.query('green', 2016, 1)
-
+        self.query(self.selected_color, self.selected_year, self.selected_month)
         self.hot_map_init()
         self.trip_hour_init()
         self.trip_distance_init()
