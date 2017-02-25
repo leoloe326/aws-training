@@ -1,7 +1,9 @@
 {
   "variables": {
-    "aws_access_key": "",
-    "aws_secret_key": ""
+    "aws_access_key":  "",
+    "aws_secret_key":  "",
+	"source_ami_id":   "",
+	"ami_name_prefix": ""
   },
 
   "builders": [{
@@ -9,10 +11,10 @@
     "access_key": "{{user `aws_access_key`}}",
     "secret_key": "{{user `aws_secret_key`}}",
     "region": "us-west-2",
-    "source_ami": "ami-022b9262",
+    "source_ami": "{{user `source_ami_id`}}",
     "instance_type": "t2.micro",
     "ssh_username": "ec2-user",
-    "ami_name": "BitTiger Amazon ECS AMI 2016.09.f x86_64 HVM GP2 {{timestamp}}",
+    "ami_name": "{{user `ami_name_prefix`}} {{timestamp}}",
     "vpc_id": "vpc-51a73336",
     "subnet_id": "subnet-dd26e594"
   }],
