@@ -39,14 +39,16 @@ benchmark:
 
 .PHONY: debug
 debug:
+	@echo "Starting DynamoDB Local..."
+	cd scripts/ && ./run_ddb.sh start
 	@echo "Debugging entire website..."
-	BOKEH_LOG_LEVEL=debug bokeh serve taxi
+	BOKEH_LOG_LEVEL=debug bokeh serve taxi --args --debug -vv
 
 .PHONY: clean
 clean:
 	@cd scripts/ && ./ec2_benchmark.py --clean --verbose 2
-	@echo "Clean the project..."
 	@cd scripts/ && ./run_ddb.sh stop
+	@echo "Clean the project..."
 	rm -rf *.pyc */*.pyc */*.db
 
 .PHONY: version
