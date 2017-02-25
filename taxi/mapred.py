@@ -154,13 +154,9 @@ class StatDB:
         except botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == 'ResourceNotFoundException':
                 logger.warning("table %s does not exist" % self.table.table_name)
-            if opts.debug:
-                logger.debug("create table %s/%s" % \
-                    (opts.ddb_endpoint, self.table.table_name))
-                self.create_table()
-
-        #if opts.debug: self.table.delete(); self.create_table()
-        #self.create_table()
+            logger.debug("create table %s/%s" % \
+                (opts.ddb_endpoint, self.table.table_name))
+            self.create_table()
 
     def create_table(self):
         self.table = self.ddb.create_table(
@@ -254,6 +250,17 @@ class StatDB:
             logger.warning('item () => not found')
         finally:
             return stat
+
+    def purge(self):
+        logger.warning('%s => purge' % self.table.table_arn)
+        for color in ['yellow', 'green']:
+            response = self.table.query(
+                KeyConditionExpression=Key('color').eq(color))
+            for item in response['Items']:
+                self.table.delete_item(Key={
+                    'color': item['color'],
+                    'date':  item['date']
+                })
 
 class TaxiStat(object):
     def __init__(self, color=None, year=0, month=0):

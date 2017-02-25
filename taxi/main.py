@@ -31,12 +31,15 @@ logging.basicConfig()
 
 def parse_argv():
     o = Options()
-
+    o.add('--purge', dest='purge', action='store_true', default=False,
+        help='purge data before load')
     return o.load()
 
 class InteractivePlot:
     def __init__(self, opts):
         self.db = StatDB(opts)
+        if opts.purge: self.db.purge()
+
         self.data = None
         self.last_query = {
             'timestamp': 0.0,
@@ -51,7 +54,7 @@ class InteractivePlot:
         self.districts_xs = []
         self.districts_ys = []
         self.districts_names = []
-        
+
         self.selected_type = 'Pickups'
         self.selected_borough = 0
         self.selected_color = 'green'
@@ -64,7 +67,7 @@ class InteractivePlot:
 
     def query(self, color, year, month):
         if time.time() - self.last_query['timestamp'] < 2: return
-        
+
         year, mont = int(year), int(month)
         self.data = self.db.get(color, year, month)
         self.last_query['color'] = color
@@ -215,7 +218,7 @@ class InteractivePlot:
             mem=[20, 10, 40, 30, 15]
         ))
         self.resource_usage = figure(plot_width=width, plot_height=height,
-            toolbar_location='right', title=None,
+            toolbar_location=None, title=None,
             x_axis_label='Elapsed (seconds)', y_axis_label='%')
 
         self.resource_usage.line(x='x', y='cpu',color='firebrick', legend='CPU',
@@ -256,7 +259,7 @@ class InteractivePlot:
         self.tasks_stat.y_range.start = 0
 
     def tasks_stat_update(self):
-        self.tasks_stat_tick += 1 
+        self.tasks_stat_tick += 1
         rm, re = self.tasks.count_tasks()
         self.tasks_stat_source.data['remain'].append(rm)
         self.tasks_stat_source.data['retry'].append(re)
@@ -294,6 +297,10 @@ class InteractivePlot:
                  NYCBorough.BOROUGHS[self.selected_borough],
                  self.selected_color,
                  self.selected_year, self.selected_month))
+            self.tasks.create_tasks(
+                self.selected_color,
+                self.selected_year,
+                self.selected_month)
 
         cwd = os.path.dirname(__file__)
         desc = Div(text=open(

@@ -18,7 +18,7 @@ logging.basicConfig()
 def parse_argv():
     o = Options()
     o.add('--create-tasks', type=int, dest='create_tasks', metavar='NUM',
-        default=0, help='create tasks')
+        default=-1, help='create tasks')
     o.add('--receive-tasks', type=int, dest='receive_tasks', metavar='NUM',
         default=0, help='receive tasks')
     o.add('--delete-after-receive', dest='delete_received', action='store_true',
@@ -86,8 +86,8 @@ class TaskManager:
         if nth is None: return [[parts[i], parts[i+1]] for i in range(N)]
         return [parts[nth], parts[nth+1]]
 
-    def create_tasks(self, color, year, month, n_tasks):
-        if n_tasks == 0: return
+    def create_tasks(self, color, year, month, n_tasks=0):
+        if n_tasks < 0: return
 
         try:
             self.s3.meta.client.head_bucket(Bucket=self.bucket.name)
@@ -100,6 +100,8 @@ class TaskManager:
         key = '%s-%s-%02d.csv' % (color, year, month)
         obj = self.bucket.Object(key)
         n_records = obj.content_length / RECORD_LENGTH
+        if n_tasks == 0:
+            n_tasks = (n_records / int(self.opts.records_per_task)) + 1
 
         self.logger.debug('create tasks for s3://%s/%s (%d)' % \
             (self.bucket.name, key, n_records))
@@ -148,6 +150,8 @@ class TaskManager:
         self.queue.purge()
 
     def run(self):
+        if self.opts.purge_queue: self.purge_queue()
+
         self.create_tasks(self.opts.color, self.opts.year, self.opts.month,
             self.opts.create_tasks)
 
@@ -156,8 +160,6 @@ class TaskManager:
 
         for i in range(self.opts.receive_tasks):
             print('received %r' % self.retrieve_task(self.opts.delete_received))
-
-        if self.opts.purge_queue: self.purge_queue()
 
 if __name__ == '__main__':
     tm = TaskManager(parse_argv())
