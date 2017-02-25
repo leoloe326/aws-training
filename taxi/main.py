@@ -10,28 +10,27 @@ import os.path
 import random
 import time
 
+import raw2aws
+
 from bokeh.plotting import figure
 #from bokeh.palettes import Viridis6 as palette
 from bokeh.palettes import GnBu6 as palette
 from bokeh.layouts import row, column, layout, widgetbox
 from bokeh.models import ColumnDataSource, HoverTool, Div, LogColorMapper, FixedTicker, FuncTickFormatter
 from bokeh.models.widgets import Dropdown, RangeSlider, RadioButtonGroup, Slider, Toggle
+from bokeh.models.widgets.inputs import DateRangeSlider, DatePicker
 from bokeh.models.renderers import GlyphRenderer
 from bokeh.io import curdoc
 
+from common import *
 from geo import NYCBorough,  NYCGeoPolygon
 from mapred import StatDB
+from tasks import TaskManager
 
 def parse_argv():
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    o = Options()
 
-    parser.add_argument('-d', '--debug', action='store_true',
-        default=False, help="debug mode")
-
-    args = parser.parse_args()
-
-    return args
+    return o.load()
 
 class InteractivePlot:
     def __init__(self, opts):
@@ -46,6 +45,8 @@ class InteractivePlot:
                  'year': 0,
                 'month': 0
         }
+
+        self.tasks = TaskManager(opts)
 
         self.boroughs = {v: k for k, v in NYCBorough.BOROUGHS.items()}
 
@@ -63,12 +64,10 @@ class InteractivePlot:
             'borough': 0
         }
 
+        self.refresh_ticks = 0
+
     def query(self, color, year, month):
-        # prevent polling too often to save cost
-        #if color == self.last_query['color'] and \
-        #   year == self.last_query['year'] and \
-        #   month == self.last_query['month']: return
-        if time.time() - self.last_query['timestamp'] < 2: time.sleep(2)
+        if time.time() - self.last_query['timestamp'] < 2: return
 
         self.data = self.db.get(color, year, month)
         self.last_query['color'] = color
@@ -177,7 +176,10 @@ class InteractivePlot:
             tooltips=[("Trips", "@dist")]))
 
     def trip_distance_update(self):
-        self.trip_distance_source.data=dict(dist=self.data.get_distance())
+        data = self.data.get_distance()
+        data[0] = random.randint(1000, 2000)
+        #self.trip_distance_source.data=dict(dist=self.data.get_distance())
+        self.trip_distance_source.data=dict(x=range(6), dist=data)
 
     def trip_fare_init(self, width=310, height=350, webgl=True):
         def ticker():
@@ -194,7 +196,6 @@ class InteractivePlot:
         self.trip_fare.y_range.start = 0
         self.trip_fare.xaxis.major_tick_line_color = None
         self.trip_fare.xaxis.minor_tick_line_color = None
-        #self.trip_fare.xaxis.major_label_orientation = math.pi/4
         self.trip_fare.xaxis.formatter=FuncTickFormatter.from_py_func(ticker)
 
         self.trip_fare.select(dict(type=GlyphRenderer))
@@ -204,7 +205,7 @@ class InteractivePlot:
     def trip_fare_update(self):
         self.trip_fare_source.data=dict(fare=self.data.get_fare())
 
-    def resource_usage_init(self, width=1480, height=120):
+    def resource_usage_init(self, width=740, height=120):
         data_len = 4
         self.resource_usage_source = ColumnDataSource(data=dict(
               x=[0, 1, 2, 3, 4],
@@ -212,7 +213,7 @@ class InteractivePlot:
             mem=[20, 10, 40, 30, 15]
         ))
         self.resource_usage = figure(plot_width=width, plot_height=height,
-            toolbar_location=None, title=None,
+            toolbar_location='right', title=None,
             x_axis_label='Elapsed (seconds)', y_axis_label='%')
 
         self.resource_usage.line(x='x', y='cpu',color='firebrick', legend='CPU',
@@ -225,11 +226,47 @@ class InteractivePlot:
         self.resource_usage.xgrid.visible = False
         self.resource_usage.ygrid.visible = False
         self.resource_usage.x_range.start = 0
-        self.resource_usage.x_range.end = data_len * 1.07 
+        self.resource_usage.x_range.end = data_len * 1.07
         self.resource_usage.y_range.start = 0
+
+    def tasks_stat_init(self, width=740, height=120):
+        self.tasks_stat_tick = 1
+        remain, retry = self.tasks.count_tasks()
+        self.tasks_stat_source = ColumnDataSource(data=dict(
+              x=range(self.tasks_stat_tick),
+              remain=[remain], retry=[retry]
+        ))
+        self.tasks_stat = figure(plot_width=width, plot_height=height,
+            title=None, toolbar_location=None,
+            x_axis_label='elapsed (seconds)', y_axis_label='tasks')
+
+        self.tasks_stat.line(x='x', y='remain',color='firebrick',
+            line_alpha=0.8, line_width=2,
+            legend='Remain', source=self.tasks_stat_source)
+        self.tasks_stat.line(x='x', y='retry', color='dodgerblue',
+            line_alpha=0.8, line_width=2,
+            legend='Retry', source=self.tasks_stat_source)
+        self.tasks_stat.legend.location = "bottom_left"
+
+        self.tasks_stat.xgrid.visible = False
+        self.tasks_stat.ygrid.visible = False
+        self.tasks_stat.x_range.start = 0
+        self.tasks_stat.y_range.start = 0
+
+    def tasks_stat_update(self):
+        self.tasks_stat_tick += 1 
+        rm, re = self.tasks.count_tasks()
+        self.tasks_stat_source.data['remain'].append(rm)
+        self.tasks_stat_source.data['retry'].append(re)
+        self.tasks_stat_source.data = dict(
+              x=range(self.tasks_stat_tick),
+              remain=self.tasks_stat_source.data['remain'],
+              retry=self.tasks_stat_source.data['retry']
+        )
 
     def plot(self):
         def update():
+            self.refresh_ticks += 1
             self.query('green', 2016, 1)
 
             if pickup_or_dropoff.active:
@@ -245,6 +282,7 @@ class InteractivePlot:
             self.trip_hour_update()
             self.trip_distance_update()
             self.trip_fare_update()
+            self.tasks_stat_update()
             # self.resource_usage_update()
 
             min_year, max_year = year_range.range
@@ -280,13 +318,21 @@ class InteractivePlot:
         year_range = RangeSlider(title="Year", start=2009, end=2016, step=1, range=(2009, 2009))
         year_range.on_change('range', lambda attr, old, new: update())
 
+        #date_range = DateRangeSlider(
+        #    bounds=(raw2aws.MIN_DATE['green'], raw2aws.MAX_DATE['green']))
+        #date_range.on_change('range', lambda attr, old, new: update())
+        date_range = DatePicker(
+            min_date=raw2aws.MIN_DATE['green'], max_date=raw2aws.MAX_DATE['green'])
+        date_range.on_change('value', lambda attr, old, new: update())
+
         month_range = RangeSlider(title="Month", start=1, end=12, step=1, range=(1, 12))
         month_range.on_change('range', lambda attr, old, new: update())
 
         emr_size = Slider(title="EC2 Instances", start=1, end=10, value=1, step=1)
         emr_size.on_change('value', lambda attr, old, new: update())
 
-        controls = [taxi_type, pickup_or_dropoff, borough, year_range, month_range, emr_size]
+        controls = [taxi_type, pickup_or_dropoff, borough, year_range,
+        month_range, date_range, emr_size]
 
         # Pickup/Dropoff Map
         self.query('green', 2016, 1)
@@ -295,6 +341,7 @@ class InteractivePlot:
         self.trip_hour_init()
         self.trip_distance_init()
         self.trip_fare_init()
+        self.tasks_stat_init()
         self.resource_usage_init()
 
         rightdown_row = row([self.trip_distance, self.trip_fare])
@@ -303,7 +350,7 @@ class InteractivePlot:
         l = layout([
             [desc],
             [inputs, self.hot_map, right_column],
-            [self.resource_usage],
+            [self.tasks_stat, self.resource_usage],
         ], sizing_mode="fixed")
 
         curdoc().add_root(l)
