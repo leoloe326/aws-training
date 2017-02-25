@@ -523,7 +523,16 @@ resource "aws_route53_record" "webserver" {
 
 resource "aws_route53_record" "web" {
     zone_id = "${var.aws["route53_zone"]}"
-    count = "${(var.aws["use_load_balancer"] && var.webserver["count"] > 0) ? 1 : 0}"
+    count   = "${var.aws["use_load_balancer"] ? 0 : 1}"
+    name    = "web"
+    type    = "CNAME"
+    ttl     = "300"
+    records = ["${element(aws_route53_record.webserver.*.fqdn, 0)}"]
+}
+
+resource "aws_route53_record" "web_elb" {
+    zone_id = "${var.aws["route53_zone"]}"
+    count   = "${(var.aws["use_load_balancer"] && var.webserver["count"] > 0) ? 1 : 0}"
     name    = "web"
     type    = "CNAME"
     ttl     = "300"
