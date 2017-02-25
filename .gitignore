@@ -8,4 +8,5 @@
 *.tfstate
 *.tfstate.backup
 *.db
+*.dmg
 hosts

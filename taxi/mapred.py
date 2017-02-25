@@ -9,7 +9,6 @@ import argparse
 import copy
 import datetime
 import decimal
-import fileinput
 import io
 import json
 import logging
@@ -85,6 +84,9 @@ def parse_argv():
              MAX_DATE[args.color].strftime('%Y-%m'),
              args.color))
 
+    if args.start < 0 or args.start > args.end:
+        fatal("invalid range [%d, %d]" % (args.start, args.end))
+
     logging.basicConfig()
 
     return args
@@ -105,45 +107,30 @@ class RecordReader(io.IOBase):
         self.s3 = boto3.resource('s3')
         self.client = boto3.client('s3')
 
-    def open(self, color, year, month, source,
-             start=0, end=sys.maxint, nParts=1, nth=0):
+        self.path = ''
+        self.proc = multiprocessing.current_process().name
 
-        def create_range(path):
-            if self.start < 0 or self.start > self.end:
-                raise ValueError("invalid range [%d, %d] for %s (records=%d)" %\
-                    (self.start, self.end, path, self.n_records))
-
-            self.end = min(self.n_records, end)
-            self.start, self.end = TaskManager.cut(self.start, self.end, nParts, nth)
-            info("proc %02d read: %s [%d, %d)" % (nth, path, self.start, self.end))
-
+    def open(self, color, year, month, source, start, end):
         self.start = start
         self.end = end
         self.skip = None
 
-        if source == '-':
-            self.data_type = self.DATA_STDIN
-            if self.start < 0 or self.start > self.end:
-                fatal("invalid range [%d, %d] for stdin" % (self.start, self.end))
-
-            self.skip = self.start
-            self.data = fileinput.input('-')
-
-        elif source.startswith('file://'):
+        if source.startswith('file://'):
             self.data_type = self.DATA_FILE
             self.data_type = 'file'
             directory = os.path.realpath(source[7:])
             if not os.path.isdir(directory):
-                fatal("%s is not a directory." % directory)
+                raise OSError("%s is not a directory." % directory)
 
             path = '%s/%s-%s-%02d.csv' % (directory, color, year, month)
             if not os.path.exists(path):
                 raise OSError("%s does not exist." % path)
             if not os.path.isfile(path):
                 raise OSError("%s is not a regular file." % path)
+            self.path = 'file://' + path
 
             self.n_records = os.path.getsize(path) / self.MAX_RECORD_LENGTH
-            create_range('file://' + path)
+            self.end = min(self.end, self.n_records)
 
             self.data = open(path, 'r')
             self.data.seek(self.MAX_RECORD_LENGTH * self.start)
@@ -162,14 +149,17 @@ class RecordReader(io.IOBase):
             # HOWTO: read object by range
             key = '%s-%s-%02d.csv' % (color, year, month)
             obj = bucket.Object(key)
+            self.path = 's3://%s/%s' %(bucket.name, key)
 
             self.n_records = obj.content_length / self.MAX_RECORD_LENGTH
-            create_range('s3://' + key)
+            self.end = min(self.end, self.n_records)
             bytes_range = 'bytes=%d-%d' % \
                 (self.start * self.MAX_RECORD_LENGTH, \
                  self.end * self.MAX_RECORD_LENGTH - 1)
             self.data = obj.get(Range=bytes_range)['Body']
 
+        info("%s read: %s [%d, %d)" % \
+            (self.proc, self.path, self.start, self.end))
         return self
 
     def readline(self):
@@ -335,8 +325,10 @@ class NYCTaxiStat(TaxiStat):
         self.reader = RecordReader()
         self.elapsed = 0
         self.districts = NYCGeoPolygon.load_districts()
+        self.path = ''
 
     def __add__(self, x):
+        if self is x: return self
         self.total += x.total
         self.invalid += x.invalid
         self.pickups += x.pickups
@@ -347,6 +339,10 @@ class NYCTaxiStat(TaxiStat):
         self.fare += x.fare
         self.elapsed = max(self.elapsed, x.elapsed)
         return self
+
+    def __repr__(self):
+        return '%s [%d, %d)' % \
+            (self.path, self.opts.start, self.opts.end)
 
     def search(self, line):
         def delta_time(seconds):
@@ -476,8 +472,8 @@ class NYCTaxiStat(TaxiStat):
         try:
             with self.reader.open(\
                 self.opts.color, self.opts.year, self.opts.month, \
-                self.opts.src, self.opts.start, self.opts.end, \
-                self.opts.nprocs, self.opts.proc_idx) as fin:
+                self.opts.src, self.opts.start, self.opts.end) as fin:
+                self.path = fin.path
                 for line in fin.readlines(): self.search(line)
         except KeyboardInterrupt as e:
             return
@@ -496,22 +492,31 @@ def start_process(opts):
     return p
 
 def start_multiprocess(opts):
+    def init():
+        _, idx = multiprocessing.current_process().name.split('-')
+        multiprocessing.current_process().name = 'mapper%02d' % int(idx)
+
     db = StatDB(opts)
 
     tasks = []
-    for i in range(opts.nprocs):
+    for start, end in TaskManager.cut(opts.start, opts.end, opts.nprocs):
         opts_copy = copy.deepcopy(opts)
-        opts_copy.proc_idx = i
+        opts_copy.start, opts_copy.end = start, end
         tasks.append(opts_copy)
 
     try:
-        procs = multiprocessing.Pool(processes=opts.nprocs)
+        procs = multiprocessing.Pool(processes=opts.nprocs, initializer=init)
         results = procs.map(start_process, tasks)
     except Exception as e:
         fatal(e)
+    finally:
+        procs.close()
+        procs.join()
 
     master = results[0]
-    for res in results[1:]: master += res
+    for res in results:
+        info('reduce %r' % res)
+        master += res
     db.append(master)
 
     if opts.report: master.report()
