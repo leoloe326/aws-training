@@ -23,76 +23,39 @@ import botocore
 from collections import Counter
 from boto3.dynamodb.conditions import Key, Attr
 
+from common import *
 from geo import NYCBorough, NYCGeoPolygon
-from raw2aws import MIN_DATE, MAX_DATE, RawReader, fatal, warning, info
 from tasks import TaskManager
 
+logging.basicConfig()
+logger = logging.getLogger(os.path.basename(__file__))
+
 def parse_argv():
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-
-    parser.add_argument('--src', metavar='URI', type=str,
+    o = Options()
+    o.add('--src', metavar='URI', type=str,
         default='s3://aws-nyc-taxi-data', help="data source directory")
-
-    parser.add_argument('-c', '--color',  metavar='yellow|green',
-        type=str, default='green', help="color of record")
-
-    parser.add_argument('-y', '--year',  metavar='YEAR',
-        type=int, default=2016, help="year of record")
-
-    parser.add_argument('-m', '--month',  metavar='MONTH',
-        type=int, default=1, help="month of record")
-
-    parser.add_argument('-s', '--start',  metavar='NUM', type=int,
+    o.add('-s', '--start',  metavar='NUM', type=int,
         default=0, help="start record index")
-
-    parser.add_argument('-e', '--end',  metavar='NUM', type=int,
+    o.add('-e', '--end',  metavar='NUM', type=int,
         default=sys.maxint, help="end record index")
-
-    parser.add_argument('-r', '--report', action='store_true',
+    o.add('-r', '--report', action='store_true',
         default=False, help="report results")
-
-    parser.add_argument('-p', '--procs', type=int, dest='nprocs',
+    o.add('-p', '--procs', type=int, dest='nprocs',
         default=1, help="number of concurrent processes")
-
-    parser.add_argument('-i', '--proc-idx', type=int,
-        dest='proc_idx', default=0, help=argparse.SUPPRESS)
-
-    parser.add_argument('-w', '--worker', action='store_true',
+    o.add('-w', '--worker', action='store_true',
         default=False, help="worker mode")
-
-    parser.add_argument('--sleep', type=int,
+    o.add('--sleep', type=int,
         default=10, help="worker sleep time if no task")
 
-    parser.add_argument('-d', '--debug', action='store_true',
-        default=False, help="debug mode")
+    opts = o.load()
 
-    parser.add_argument('-v', '--verbose', type=int,
-        default=logging.NOTSET, help='verbose level')
+    if opts.start < 0 or opts.start > opts.end:
+        fatal("invalid range [%d, %d]" % (opts.start, opts.end))
 
-    args = parser.parse_args()
-
-    # check arguments
-    if args.color != 'yellow' and args.color != 'green':
-        fatal('unknown color: %s' % args.color)
-
-    data_date = datetime.datetime(args.year, args.month, 1)
-    if not (data_date >= MIN_DATE[args.color] and \
-            data_date <= MAX_DATE[args.color]):
-        fatal('date range must be from %s to %s for %s data' % \
-            (MIN_DATE[args.color].strftime('%Y-%m'),
-             MAX_DATE[args.color].strftime('%Y-%m'),
-             args.color))
-
-    if args.start < 0 or args.start > args.end:
-        fatal("invalid range [%d, %d]" % (args.start, args.end))
-
-    logging.basicConfig()
-
-    return args
+    logger.setLevel(opts.verbose)
+    return opts
 
 class RecordReader(io.IOBase):
-    MAX_RECORD_LENGTH = RawReader.MAX_RECORD_LENGTH
     DATA_STDIN = 1
     DATA_FILE = 2
     DATA_S3 = 3
@@ -129,11 +92,11 @@ class RecordReader(io.IOBase):
                 raise OSError("%s is not a regular file." % path)
             self.path = 'file://' + path
 
-            self.n_records = os.path.getsize(path) / self.MAX_RECORD_LENGTH
+            self.n_records = os.path.getsize(path) / RECORD_LENGTH
             self.end = min(self.end, self.n_records)
 
             self.data = open(path, 'r')
-            self.data.seek(self.MAX_RECORD_LENGTH * self.start)
+            self.data.seek(RECORD_LENGTH * self.start)
 
         elif source.startswith('s3://'):
             self.data_type = self.DATA_S3
@@ -151,21 +114,21 @@ class RecordReader(io.IOBase):
             obj = bucket.Object(key)
             self.path = 's3://%s/%s' %(bucket.name, key)
 
-            self.n_records = obj.content_length / self.MAX_RECORD_LENGTH
+            self.n_records = obj.content_length / RECORD_LENGTH
             self.end = min(self.end, self.n_records)
             bytes_range = 'bytes=%d-%d' % \
-                (self.start * self.MAX_RECORD_LENGTH, \
-                 self.end * self.MAX_RECORD_LENGTH - 1)
+                (self.start * RECORD_LENGTH, \
+                 self.end * RECORD_LENGTH - 1)
             self.data = obj.get(Range=bytes_range)['Body']
 
-        info("%s read: %s [%d, %d)" % \
-            (self.proc, self.path, self.start, self.end))
+        logger.info("%s [%d, %d) => %s" % \
+            (self.path, self.start, self.end, self.proc))
         return self
 
     def readline(self):
         if self.data_type == self.DATA_S3:
             # HOWTO: fixed length makes read very easy
-            return self.data.read(self.MAX_RECORD_LENGTH)
+            return self.data.read(RECORD_LENGTH)
         return self.data.readline()
 
     def readlines(self):
@@ -183,18 +146,17 @@ class RecordReader(io.IOBase):
 
 class StatDB:
     def __init__(self, opts):
-        self.opts = opts
         self.ddb = boto3.resource('dynamodb',
-            region_name='us-west-2', endpoint_url="http://localhost:8000")
-        self.table = self.ddb.Table('taxi')
+            region_name=opts.region, endpoint_url=opts.ddb_endpoint)
+        self.table = self.ddb.Table(opts.ddb_table_name)
         try:
             assert self.table.table_status == 'ACTIVE'
         except botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == 'ResourceNotFoundException':
-                warning("table %s does not exist" % self.table.table_name)
-            if opts.debug: self.create_table()
-
-        # if self.opts.debug: self.table.delete(); self.create_table()
+                logger.warning("table %s does not exist" % self.table.table_name)
+            logger.debug("create table %s/%s" % \
+                (opts.ddb_endpoint, self.table.table_name))
+            self.create_table()
 
     def create_table(self):
         self.table = self.ddb.create_table(
@@ -261,6 +223,7 @@ class StatDB:
                 if key.startswith(prefix):
                     counter[int(key[1:])] = int(val)
 
+        stat = TaxiStat(color, year, month)
         try:
             response = self.table.get_item(
                 Key={
@@ -268,25 +231,36 @@ class StatDB:
                     'date': year * 100 + month
                 }
             )
+
+            values = response['Item']
+
+            stat.total = values['l']
+            stat.invalid = values['i']
+            add_stat(stat.pickups,   'p')
+            add_stat(stat.dropoffs,  'r')
+            add_stat(stat.hour,      'h')
+            add_stat(stat.trip_time, 't')
+            add_stat(stat.distance,  's')
+            add_stat(stat.fare,      'f')
+            add_stat(stat.borough_pickups,  'k')
+            add_stat(stat.borough_dropoffs, 'o')
         except botocore.exceptions.ClientError as e:
-            print(e.response['Error']['Message'])
-            return None
+            logger.warning(e.response['Error']['Message'])
+        except KeyError:
+            logger.warning('item () => not found')
+        finally:
+            return stat
 
-        values = response['Item']
-        stat = TaxiStat(color, year, month)
-
-        stat.total = values['l']
-        stat.invalid = values['i']
-        add_stat(stat.pickups,   'p')
-        add_stat(stat.dropoffs,  'r')
-        add_stat(stat.hour,      'h')
-        add_stat(stat.trip_time, 't')
-        add_stat(stat.distance,  's')
-        add_stat(stat.fare,      'f')
-        add_stat(stat.borough_pickups,  'k')
-        add_stat(stat.borough_dropoffs, 'o')
-
-        return stat
+    def purge(self):
+        logger.warning('%s => purge' % self.table.table_arn)
+        for color in ['yellow', 'green']:
+            response = self.table.query(
+                KeyConditionExpression=Key('color').eq(color))
+            for item in response['Items']:
+                self.table.delete_item(Key={
+                    'color': item['color'],
+                    'date':  item['date']
+                })
 
 class TaxiStat(object):
     def __init__(self, color=None, year=0, month=0):
@@ -318,7 +292,6 @@ class TaxiStat(object):
         return [self.fare[i] for i in [0, 5, 10, 25, 50, 100]]
 
 class NYCTaxiStat(TaxiStat):
-    START_DATE = RawReader.START_DATE
     def __init__(self, opts):
         super(NYCTaxiStat, self).__init__(opts.color, opts.year, opts.month)
         self.opts = opts
@@ -346,7 +319,7 @@ class NYCTaxiStat(TaxiStat):
 
     def search(self, line):
         def delta_time(seconds):
-            return self.START_DATE + datetime.timedelta(seconds=seconds)
+            return BASE_DATE + datetime.timedelta(seconds=seconds)
 
         pickup_datetime, dropoff_datetime, \
         pickup_longitude, pickup_latitude, \
@@ -381,7 +354,7 @@ class NYCTaxiStat(TaxiStat):
 
         self.total += 1
         if pickup_district is None and dropoff_district is None:
-            warning("cannot locate trip (%f, %f) => (%f, %f)" % \
+            logger.debug("(%f, %f) >> (%f, %f) => unable to locate" % \
                 (pickup_longitude, pickup_latitude, \
                  dropoff_longitude, dropoff_latitude))
             self.invalid += 1
@@ -515,7 +488,7 @@ def start_multiprocess(opts):
 
     master = results[0]
     for res in results:
-        info('reduce %r' % res)
+        logger.info('%r => reducer' % res)
         master += res
     db.append(master)
 
@@ -524,27 +497,26 @@ def start_multiprocess(opts):
     return True
 
 def start_worker(opts):
-    task_manager = TaskManager()
-    logger = logging.getLogger(NYCTaxiStat.__name__)
-    logger.setLevel(opts.verbose)
-
-    opts.nprocs = multiprocessing.cpu_count()
+    task_manager = TaskManager(opts)
+    if not opts.debug: opts.nprocs = multiprocessing.cpu_count()
+    nth_task = 0
 
     while True:
-        task = task_manager.retrieve_task()
+        task = task_manager.retrieve_task(delete=False)
         if task:
-            logger.info('get task %r' % task)
+            logger.info('task %d => start' % nth_task)
             opts.color = task.color
             opts.year = task.year
             opts.month = task.month
             opts.start = task.start
             opts.end = task.end
             if start_multiprocess(opts):
-                logger.info("task %r succeeded" % task)
+                logger.info("task %r => succeeded" % task)
                 task_manager.delete_task(task)
+            nth_task += 1
         else:
-            logger.info("no task, wait for 10 seconds...")
-            time.sleep(10)
+            logger.info("no task, wait for %d seconds..." % opts.sleep)
+            time.sleep(opts.sleep)
 
 def main(opts):
     if opts.worker: start_worker(opts)

@@ -42,7 +42,7 @@ ami:
 
 .PHONY: userdata
 userdata:
-	aws s3 cp setup.sh s3://$(USERDATA_BUCKET)
+	aws s3 cp setup.sh s3://$(USERDATA_BUCKET)/setup.sh
 	aws s3 cp $(USERDATA_SSHKEY) s3://$(USERDATA_BUCKET)
 
 .PHONY: config
@@ -82,7 +82,7 @@ apply:
 	$(TF) apply $(TF_FLAGS)
 	$(TF) remote push
 	@echo "Creating Ansible inventory..."
-	$(TF) output -json | ./json2ini.py --keywords webservers,mappers,reducers -o hosts
+	$(TF) output -json | ./json2ini.py --keywords webservers,mappers,reducers,dockers -o hosts
 
 .PHONY: deploy
 deploy:

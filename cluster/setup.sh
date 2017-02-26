@@ -52,3 +52,7 @@ ssh-add ~/.ssh/id_bitbucket_deploy
 echo -e "Host bitbucket.org\n  StrictHostKeyChecking no\n" >> ~/.ssh/config
 chmod 600 ~/.ssh/config
 git clone ${REPO} ~/aws
+
+sleep 30
+
+/home/ec2-user/aws/taxi/mapred.py -w -vv &> /home/ec2-user/aws/taxi/mapred-`date +%Y-%m-%d-%H-%M-%S`.log &

@@ -9,4 +9,5 @@
 *.tfstate.backup
 *.db
 *.dmg
+*.log
 hosts
