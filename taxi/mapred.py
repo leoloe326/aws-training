@@ -183,7 +183,7 @@ class StatDB:
 
             ],
             ProvisionedThroughput={
-                'ReadCapacityUnits': 10,
+                'ReadCapacityUnits': 2,
                 'WriteCapacityUnits': 10
             }
         )
