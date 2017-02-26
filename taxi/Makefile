@@ -25,6 +25,7 @@ help:
 	@echo "  build       build Docker image"
 	@echo "  push        push image"
 	@echo "  pull        show pull command"
+	@echo "  task        generate task definition"
 
 .PHONY: login
 login:
@@ -45,3 +46,7 @@ pull:
 	@echo "Copy and paste following commands to Docker instance"
 	@echo "\`aws ecr get-login --region $(DEFAULT_AWS_REGION)\`"
 	@echo $(DK) pull $(DEFAULT_AWS_ACCOUNT).dkr.ecr.$(DEFAULT_AWS_REGION).amazonaws.com/taxi:latest
+
+.PHONY: task
+task:
+	@aws ecs register-task-definition --generate-cli-skeleton
