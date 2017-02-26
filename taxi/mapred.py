@@ -37,7 +37,7 @@ def parse_argv():
     o.add('-s', '--start',  metavar='NUM', type=int,
         default=0, help="start record index")
     o.add('-e', '--end',  metavar='NUM', type=int,
-        default=sys.maxint, help="end record index")
+        default=4 * 1024 ** 3, help="end record index")
     o.add('-r', '--report', action='store_true',
         default=False, help="report results")
     o.add('-p', '--procs', type=int, dest='nprocs',
@@ -80,7 +80,6 @@ class RecordReader(io.IOBase):
 
         if source.startswith('file://'):
             self.data_type = self.DATA_FILE
-            self.data_type = 'file'
             directory = os.path.realpath(source[7:])
             if not os.path.isdir(directory):
                 raise OSError("%s is not a directory." % directory)
