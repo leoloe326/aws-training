@@ -52,6 +52,9 @@ def parse_argv():
     if opts.start < 0 or opts.start > opts.end:
         fatal("invalid range [%d, %d]" % (opts.start, opts.end))
 
+    opts.end = min(get_file_length(
+        opts.src, opts.color, opts.year, opts.month), opts.end)
+
     logger.setLevel(opts.verbose)
     return opts
 
@@ -62,7 +65,6 @@ class RecordReader(io.IOBase):
 
     def __init__(self):
         self.data = None
-        self.n_records = 0
         self.start = 0
         self.end = 0
         self.data_type = -1
@@ -77,22 +79,13 @@ class RecordReader(io.IOBase):
         self.start = start
         self.end = end
         self.skip = None
+        filename = get_file_name(color, year, month)
 
         if source.startswith('file://'):
             self.data_type = self.DATA_FILE
             directory = os.path.realpath(source[7:])
-            if not os.path.isdir(directory):
-                raise OSError("%s is not a directory." % directory)
-
-            path = '%s/%s-%s-%02d.csv' % (directory, color, year, month)
-            if not os.path.exists(path):
-                raise OSError("%s does not exist." % path)
-            if not os.path.isfile(path):
-                raise OSError("%s is not a regular file." % path)
+            path = '%s/%s' % (directory, filename)
             self.path = 'file://' + path
-
-            self.n_records = os.path.getsize(path) / RECORD_LENGTH
-            self.end = min(self.end, self.n_records)
 
             self.data = open(path, 'r')
             self.data.seek(RECORD_LENGTH * self.start)
@@ -101,20 +94,10 @@ class RecordReader(io.IOBase):
             self.data_type = self.DATA_S3
             bucket = self.s3.Bucket(source[5:])
 
-            try:
-                self.s3.meta.client.head_bucket(Bucket=bucket.name)
-            except botocore.exceptions.ClientError as e:
-                error_code = int(e.response['Error']['Code'])
-                if error_code == 404:
-                    raise OSError("%s does not exists" % self.opts.dst)
-
             # HOWTO: read object by range
-            key = '%s-%s-%02d.csv' % (color, year, month)
-            obj = bucket.Object(key)
-            self.path = 's3://%s/%s' %(bucket.name, key)
+            obj = bucket.Object(filename)
+            self.path = 's3://%s/%s' %(bucket.name, filename)
 
-            self.n_records = obj.content_length / RECORD_LENGTH
-            self.end = min(self.end, self.n_records)
             bytes_range = 'bytes=%d-%d' % \
                 (self.start * RECORD_LENGTH, \
                  self.end * RECORD_LENGTH - 1)
