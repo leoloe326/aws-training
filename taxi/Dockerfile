@@ -10,6 +10,6 @@ RUN `command -v pip` install -U pip
 RUN `command -v pip` install -U boto boto3 awscli bokeh paramiko bytebuffer pandas shapely flexx
 
 # Copy Project Files
-RUN mkdir -p /tmp/taxi
+RUN ["mkdir", "-p", "/tmp/taxi"]
 COPY ./* /tmp/taxi/
-CMD ['/tmp/taxi/mapred.py', '-s', '0', '-e', '50', '-r']
+CMD ["/tmp/taxi/mapred.py", "-w", "-vv"]
