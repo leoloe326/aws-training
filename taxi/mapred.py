@@ -418,8 +418,8 @@ class NYCTaxiStat(TaxiStat):
         print(format_str % ('> 100',    self.fare[100]))
 
         print(''.center(width, '='))
-        print("Done, took %.2f seconds using %d processes." %\
-            (self.elapsed, self.opts.nprocs))
+        print("Done, %d/%d records in %.2f seconds by %d processes." %\
+            (self.total-self.invalid, self.total, self.elapsed, self.opts.nprocs))
 
     def run(self):
         self.elapsed = time.time()
@@ -436,8 +436,10 @@ class NYCTaxiStat(TaxiStat):
         # aggregate boroughs' pickups and dropoffs
         for index, count in self.pickups.items():
             self.borough_pickups[index/10000] += count
+            self.borough_pickups[0] += count
         for index, count in self.dropoffs.items():
             self.borough_dropoffs[index/10000] += count
+            self.borough_dropoffs[0] += count
 
         self.elapsed = time.time() - self.elapsed
 
