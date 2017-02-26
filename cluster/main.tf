@@ -350,6 +350,27 @@ resource "aws_spot_instance_request" "docker" {
     }
 }
 
+resource "aws_ecs_task_definition" "mapper" {
+  family = "mapper-ecs-service"
+  container_definitions = "${file("mapper.json")}"
+}
+
+resource "aws_ecs_service" "mapper" {
+	name = "mapper-ecs-service"
+  	cluster = "${aws_ecs_cluster.mapper.id}"
+  	task_definition = "${aws_ecs_task_definition.mapper.arn}"
+  	desired_count = 1
+
+  	placement_strategy {
+    	type = "binpack"
+    	field = "cpu"
+  	}
+}
+
+resource "aws_ecs_cluster" "mapper" {
+	name = "mapper-ecs-cluster"
+}
+
 ### Security Groups ###
 resource "aws_security_group" "default" {
     vpc_id = "${var.aws["vpc_id"]}"
