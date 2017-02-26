@@ -48,14 +48,15 @@ mapper = {
   ebs_volume_deletion  = "true"
   out_sqs_cidr_block   = "0.0.0.0/0"
 
+  use_as_ecs           = true
   use_asg              = false
   asg_instance_types   = "c4.large,c4.2xlarge,c4.4xlarge"
   asg_instance_counts  = "1,0,0"
   asg_termination_policies = "ClosestToNextInstanceHour,OldestInstance"
 
-  use_spotfleet        = false
+  use_spotfleet        = true
   spot_instance_types  = "c3.large"
-  spot_instance_counts = "0"
+  spot_instance_counts = "1"
   spot_prices          = "0.5"
   spot_iam_role = "arn:aws:iam::026979347307:role/MapperSpotFleetRole"  # TODO
   spot_allocation_strategy = "lowestPrice"

@@ -64,6 +64,8 @@ variable "mapper" {
         ebs_volume_size = ""
         ebs_volume_deletion = ""
 
+		use_as_ecs               = ""
+
 		use_asg                  = ""
 		asg_instance_types       = ""
 		asg_instance_counts      = ""
@@ -251,7 +253,7 @@ resource "aws_spot_fleet_request" "mapper" {
 	spot_price = "${element(split(",", var.mapper["spot_prices"]), count.index)}"
 	terminate_instances_with_expiration = true
 	launch_specification {
-		ami = "${var.aws["ami"]}"
+		ami = "${var.mapper["use_as_ecs"] ? var.docker["ami"] : var.aws["ami"]}"
 		instance_type = "${element(split(",", var.mapper["spot_instance_types"]), count.index)}"
 		key_name = "${var.aws["key_name"]}"
     	subnet_id = "${var.aws["subnet_id"]}"
@@ -260,7 +262,7 @@ resource "aws_spot_fleet_request" "mapper" {
 		iam_instance_profile = "${var.aws["iam_instance_profile"]}"
 		weighted_capacity = 1
 		spot_price = "${element(split(",", var.mapper["spot_prices"]), count.index)}"
-		user_data = "${file("userdata.sh")}"
+		user_data = "${var.mapper["use_as_ecs"] ? file("userdata_ecs.sh") : file("userdata.sh")}"
 	}
 }
 
