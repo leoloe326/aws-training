@@ -42,7 +42,7 @@ ami:
 
 .PHONY: userdata
 userdata:
-	aws s3 cp setup.sh s3://$(USERDATA_BUCKET)
+	aws s3 cp setup.sh s3://$(USERDATA_BUCKET)/setup.sh
 	aws s3 cp $(USERDATA_SSHKEY) s3://$(USERDATA_BUCKET)
 
 .PHONY: config
