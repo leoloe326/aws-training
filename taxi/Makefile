@@ -21,11 +21,12 @@ all: help
 help:
 	@echo "usage: make <action>"
 	@echo "Available actions are:"
-	@echo "  login       ECS login"
-	@echo "  build       build Docker image"
-	@echo "  push        push image"
-	@echo "  pull        show pull command"
-	@echo "  task        generate task definition"
+	@echo "  login  ECS login"
+	@echo "  build  build Docker image"
+	@echo "  push   push image"
+	@echo "  pull   show pull command"
+	@echo "  task   generate task definition"
+	@echo "  debug  debugging run"
 
 .PHONY: login
 login:
@@ -46,6 +47,13 @@ pull:
 	@echo "Copy and paste following commands to Docker instance"
 	@echo "\`aws ecr get-login --region $(DEFAULT_AWS_REGION)\`"
 	@echo $(DK) pull $(DEFAULT_AWS_ACCOUNT).dkr.ecr.$(DEFAULT_AWS_REGION).amazonaws.com/taxi:latest
+
+.PHONY: debug
+debug:
+	@echo "Starting DynamoDB Local..."
+	cd ../scripts/ && ./run_ddb.sh start
+	@echo "Debugging entire website..."
+	BOKEH_LOG_LEVEL=debug bokeh serve ../taxi --args --debug -vv
 
 .PHONY: task
 task:

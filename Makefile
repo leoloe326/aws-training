@@ -37,13 +37,6 @@ benchmark:
 	@echo "Bechmarking AWS resources..."
 	@cd scripts/ && ./ec2_benchmark.py --wait --verbose 2
 
-.PHONY: debug
-debug:
-	@echo "Starting DynamoDB Local..."
-	cd scripts/ && ./run_ddb.sh start
-	@echo "Debugging entire website..."
-	BOKEH_LOG_LEVEL=debug bokeh serve taxi --args --debug -vv
-
 .PHONY: clean
 clean:
 	@cd scripts/ && ./ec2_benchmark.py --clean --verbose 2
