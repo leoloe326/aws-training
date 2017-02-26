@@ -55,4 +55,4 @@ git clone ${REPO} ~/aws
 
 sleep 30
 
-/home/ec2-user/aws/taxi/mapred.py -w -vv &> /home/ec2-user/aws/taxi/mapred-`date +%Y-%m-%d-%H-%M-%S`.log
+/home/ec2-user/aws/taxi/mapred.py -w -vv &> /home/ec2-user/aws/taxi/mapred-`date +%Y-%m-%d-%H-%M-%S`.log &
