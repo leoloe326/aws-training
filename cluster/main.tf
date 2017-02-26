@@ -353,11 +353,13 @@ resource "aws_spot_instance_request" "docker" {
 }
 
 resource "aws_ecs_task_definition" "mapper" {
-  family = "mapper-ecs-service"
-  container_definitions = "${file("mapper.json")}"
+    count = "${var.mapper["use_as_ecs"] ? 1 : 0}"
+    family = "mapper-ecs-service"
+    container_definitions = "${file("mapper.json")}"
 }
 
 resource "aws_ecs_service" "mapper" {
+	count = "${var.mapper["use_as_ecs"] ? 1 : 0}"
 	name = "mapper-ecs-service"
   	cluster = "${aws_ecs_cluster.mapper.id}"
   	task_definition = "${aws_ecs_task_definition.mapper.arn}"
@@ -370,6 +372,7 @@ resource "aws_ecs_service" "mapper" {
 }
 
 resource "aws_ecs_cluster" "mapper" {
+	count = "${var.mapper["use_as_ecs"] ? 1 : 0}"
 	name = "mapper-ecs-cluster"
 }
 
@@ -546,7 +549,7 @@ resource "aws_route53_record" "webserver" {
 
 resource "aws_route53_record" "web" {
     zone_id = "${var.aws["route53_zone"]}"
-    count   = "${var.aws["use_load_balancer"] ? 0 : 1}"
+    count   = "${(! var.aws["use_load_balancer"] && var.webserver["count"] > 0) ? 1 : 0}"
     name    = "web"
     type    = "CNAME"
     ttl     = "300"
