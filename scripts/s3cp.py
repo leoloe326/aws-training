@@ -24,7 +24,7 @@ from cStringIO import StringIO
 VERBOSE_INFO  = 0
 VERBOSE_DEBUG = 1
 VERBOSE_TRACE = 2
-VERBOSE_LEVEL = VERBOSE_TRACE
+VERBOSE_LEVEL = VERBOSE_INFO
 
 def fatal(message=''):
     if message:
@@ -293,7 +293,7 @@ for prefix in string.ascii_lowercase + string.digits:
     # HOWTO: use prefix to restrict listing objects
     response = s3_client.list_objects_v2(
         Bucket=src_bucket.name,
-        Prefix=prefix,
+        Prefix=prefix, # important: only list object with specific prefix
         MaxKeys=1) # NOTE: MaxKeys=1 since we only test object existence
     if response['KeyCount'] > 0:
         existing_prefixes.append(prefix)
