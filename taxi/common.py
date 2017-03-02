@@ -12,7 +12,12 @@ import os.path
 import sys
 import ConfigParser
 
-__all__ = ['RECORD_LENGTH', 'MIN_DATE', 'MAX_DATE', 'BASE_DATE', 'fatal', 'error', 'Options']
+import boto3
+
+__all__ = ['RECORD_LENGTH', 'MIN_DATE', 'MAX_DATE', 'BASE_DATE', \
+           'fatal', 'error', \
+           'get_file_name', 'get_file_size', 'get_file_length', \
+           'Options']
 
 RECORD_LENGTH = 80
 MIN_DATE = {
@@ -33,6 +38,41 @@ def fatal(message):
 def error(message):
     sys.stderr.write('error: %s\n' % message)
     sys.stderr.flush()
+
+def get_file_name(color, year, month):
+    return '%s-%s-%02d.csv' % (color, year, int(month))
+
+def get_file_size(source, color, year, month):
+    name = get_file_name(color, year, month)
+
+    if source.startswith('file://'):
+        directory = os.path.realpath(source[7:])
+        if not os.path.isdir(directory):
+            fatal("%s is not a directory." % directory)
+
+        path = os.path.join(directory, name)
+        if not os.path.exists(path):
+            fatal("%s does not exist." % path)
+        if not os.path.isfile(path):
+            fatal("%s is not a regular file." % path)
+
+        return os.path.getsize(path)
+
+    elif source.startswith('s3://'):
+        s3 = boto3.resource('s3')
+        bucket = s3.Bucket(source[5:])
+
+        try:
+            s3.meta.client.head_bucket(Bucket=bucket.name)
+        except botocore.exceptions.ClientError as e:
+            error_code = int(e.response['Error']['Code'])
+            if error_code == 404:
+                fatal("%s does not exists" % self.opts.dst)
+
+        return bucket.Object(name).content_length
+
+def get_file_length(source, color, year, month):
+    return get_file_size(source, color, year, month) / RECORD_LENGTH
 
 class Options:
     def __init__(self):
