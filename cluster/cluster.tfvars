@@ -1,7 +1,7 @@
 # AWS Settings
 aws = {
   region         = "us-west-2"
-  key_name       = "dun"                                # TODO
+  key_name       = "aws_211"                                # TODO
   ami            = "ami-8fad2eef"                       # TODO
   subnet_id      = "subnet-dd26e594"
   subnet_ids     = "subnet-dd26e594,subnet-7fa51618"    # TODO
@@ -12,7 +12,7 @@ aws = {
   in_ssh_cidr_block    = "0.0.0.0/0"
   iam_instance_profile = "Taxi-EC2-Instance-Profile"    # TODO
   use_spot_instances   = false
-  use_load_balancer    = false
+  use_load_balancer    = true
 }
 
 # Terraform Settings
